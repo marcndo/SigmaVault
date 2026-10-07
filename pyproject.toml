@@ -1,0 +1,14 @@
+[project]
+name = "sigmavault"
+version = "0.1.0"
+description = "Autonomous business treasury decision system"
+readme = "README.md"
+authors = [
+    { name = "marcndo", email = "ndowahmarcel@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
