@@ -1,9 +1,8 @@
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
-from sigmavault.treasury.domain import Money
+from sigmavault.treasury.domain import Money, Obligation, ObligationSource, TreasuryPolicy
 import pytest
-from datetime import date
-from sigmavault.treasury.domain import Obligation
+from datetime import date, timedelta
 
 def test_money_can_be_created():
     money = Money(Decimal("100.00"), "USD")
@@ -34,20 +33,51 @@ def test_obligation_can_be_created():
     obligation = Obligation(
         amount = Money(Decimal("5200.00"),"USD"),
         due_date = date(2026,10, 6),
-        status = ObligationSource.CONFIRMED,    
+        source = ObligationSource.CONFIRMED,    
     )
-    assert obligation.amout == Decimal("5200.00","USD")
+    assert obligation.amount == Money(Decimal("5200.00"),"USD")
     assert obligation.due_date == date(2026, 10, 6)
-    assert obligation.status == ObligationSource.CONFIRMED
+    assert obligation.source == ObligationSource.CONFIRMED
     
 def test_obligation_is_immutable():
         obligation = Obligation(
         amount = Money(Decimal("5200.00"),"USD"),
         due_date = date(2026,10, 6),
-        status = ObligationSource.CONFIRMED,
+        source = ObligationSource.CONFIRMED,
         )
         with pytest.raises(FrozenInstanceError):
-            assert obligation.due_date == date(2026, 10, 10)
+            obligation.due_date = date(2026, 10, 10)
         
     
+def test_treasury_policy_can_be_created():
+    policy = TreasuryPolicy(
+      planning_horizon = timedelta(days=14),
+      minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
+    )
+    assert policy.planning_horizon == timedelta(days=14)
+    assert policy.minimum_cash_buffer == Money(Decimal("8000.00"),"USD")
+    
+
+def test_treasury_policy_rejects_none_positive_planning_horizon():
+    with pytest.raises(ValueError):
+        TreasuryPolicy(
+      planning_horizon = timedelta(days=14),
+      minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
+    )
+    
+
+def test_treasury_policy_rejects_negative_cash_butter():
+    with pytest.raises(ValueError):
+        TreasuryPolicy(
+      planning_horizon = timedelta(days=14),
+      minimum_cash_buffer = Money(Decimal("-10.00"),"USD"),   
+    )
+
+def test_treasury_policy_is_immutable():
+    with pytest.raises(FrozenInstanceError):
+        policy = TreasuryPolicy(
+      planning_horizon = timedelta(days=14),
+      minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
+    )
+        policy.planning_horizon = timedelta(days=20)
     
