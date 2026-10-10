@@ -1,8 +1,14 @@
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
-from sigmavault.treasury.domain import Money, Obligation, ObligationSource, PolicyTreasury
 import pytest
 from datetime import date, timedelta
+from sigmavault.treasury.domain import (Money,
+                                        Obligation,
+                                        ObligationSource, 
+                                        PolicyTreasury,
+                                        LiquidityPosition,
+                                        LiquidityStatus)
+
 
 def test_money_can_be_created():
     money = Money(Decimal("100.00"), "USD")
@@ -80,4 +86,30 @@ def test_treasury_policy_is_immutable():
       minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
     )
         policy.planning_horizon = timedelta(days=20)
+
+def test_liquidity_position_can_be_created():
+    position = LiquidityPosition(
+        available_cash = Money(Decimal("40000"),"USD"),
+        required_liquidity = Money(Decimal("22000"),"USD"),
+        minimum_cash_buffer = Money(Decimal("8000"),"USD"),
+        deployable_surplus = Money(Decimal("10000"),"USD"),
+        liquidity_shortfall = Money(Decimal("0"),"UDS"),
+        status = LiquidityStatus.SUFFICIENT     
+    )
+    assert position.deployable_surplus == Money(Decimal("10000"),"USD")
+    assert position.status is LiquidityStatus.SUFFICIENT
+    
+def test_liquidity_position_is_immutable():
+        position = LiquidityPosition(
+        available_cash = Money(Decimal("25000"),"USD"),
+        required_liquidity = Money(Decimal("10000"),"USD"),
+        minimum_cash_buffer = Money(Decimal("8000"),"USD"),
+        deployable_surplus = Money(Decimal("7000"),"USD"),
+        liquidity_shortfall = Money(Decimal("0"),"UDS"),
+        status = LiquidityStatus.INSUFFICIENT
+        )
+        with pytest.raises(FrozenInstanceError):
+            position.status = LiquidityStatus.SUFFICIENT
+
+    
     

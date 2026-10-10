@@ -42,6 +42,20 @@ class PolicyTreasury:
         
         if self.minimum_cash_buffer.amount < Decimal("0"):
             raise ValueError("minimum_cash_buffer must be greater than zero")
+   
+class LiquidityStatus(Enum):
+    SUFFICIENT = "sufficient" 
+    INSUFFICIENT = "insufficient"
+    
+@dataclass(frozen=True)
+class LiquidityPosition:
+    available_cash: Money
+    required_liquidity: Money
+    minimum_cash_buffer: Money
+    deployable_surplus: Money
+    liquidity_shortfall: Money
+    status : LiquidityStatus
+    
             
         
 
