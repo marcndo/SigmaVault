@@ -26,7 +26,7 @@ class Obligation:
     source: ObligationSource
     
 @dataclass(frozen=True)
-class PolicyTreasury:
+class TreasuryPolicy:
     planning_horizon: timedelta
     minimum_cash_buffer: Money
     

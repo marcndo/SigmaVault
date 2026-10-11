@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from sigmavault.treasury.domain import (Money,
                                         Obligation,
                                         ObligationSource, 
-                                        PolicyTreasury,
+                                        TreasuryPolicy,
                                         LiquidityPosition,
                                         LiquidityStatus)
 
@@ -56,7 +56,7 @@ def test_obligation_is_immutable():
         
     
 def test_treasury_policy_can_be_created():
-    policy = PolicyTreasury(
+    policy = TreasuryPolicy(
       planning_horizon = timedelta(days=14),
       minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
     )
@@ -66,7 +66,7 @@ def test_treasury_policy_can_be_created():
 
 def test_treasury_policy_rejects_none_positive_planning_horizon():
     with pytest.raises(ValueError):
-        PolicyTreasury(
+        TreasuryPolicy(
       planning_horizon = -timedelta(days=14),
       minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
     )
@@ -74,14 +74,14 @@ def test_treasury_policy_rejects_none_positive_planning_horizon():
 
 def test_treasury_policy_rejects_negative_cash_butter():
     with pytest.raises(ValueError):
-        PolicyTreasury(
+        TreasuryPolicy(
       planning_horizon = timedelta(days=14),
       minimum_cash_buffer = Money(Decimal("-10.00"),"USD"),   
     )
 
 def test_treasury_policy_is_immutable():
     with pytest.raises(FrozenInstanceError):
-        policy = PolicyTreasury(
+        policy = TreasuryPolicy(
       planning_horizon = timedelta(days=14),
       minimum_cash_buffer = Money(Decimal("8000.00"),"USD"),   
     )
