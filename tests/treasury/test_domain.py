@@ -119,6 +119,7 @@ def test_financial_transaction_stores_required_fields():
         amount=Decimal("125000.75"),
         currency="XAF",
         status="forecast",
+        direction="income",
     )
 
     assert transaction.transaction_id == "101"
@@ -134,6 +135,7 @@ def test_financial_transaction_rejects_non_decimal_amount():
             amount="125000.75",
             currency="XAF",
             status="forecast",
+            direction="income",
         )
         
 @pytest.mark.parametrize(
@@ -153,6 +155,7 @@ def test_financial_transaction_rejects_non_finite_amount(
             amount=invalid_amount,
             currency="XAF",
             status="forecast",
+            direction="income",
         )
         
 
@@ -163,6 +166,7 @@ def test_financial_transaction_rejects_negative_amount():
             amount=Decimal("-50000"),
             currency="XAF",
             status="forecast",
+            direction="income",
         )
         
         
@@ -183,4 +187,90 @@ def test_financial_transaction_rejects_invalid_identifier(invalid_id):
             amount=Decimal("50000"),
             currency="XAF",
             status="forecast",
+            direction="income",
+        )
+        
+
+@pytest.mark.parametrize(
+    "invalid_currency",
+    [
+        "",
+        "   ",
+        None,
+        123,
+        "USD",
+        "INVALID",
+    ],
+)
+def test_financial_transaction_rejects_invalid_currency(
+    invalid_currency,
+):
+    with pytest.raises((TypeError, ValueError)):
+        FinancialTransaction(
+            transaction_id="101",
+            amount=Decimal("50000"),
+            currency=invalid_currency,
+            status="forecast",
+            direction="income",
+        )
+        
+@pytest.mark.parametrize(
+    "invalid_status",
+    [
+        "",
+        "   ",
+        None,
+        123,
+        "pending",
+        "FORECAST",
+        "completed",
+    ],
+)
+def test_financial_transaction_rejects_invalid_status(
+    invalid_status,
+):
+    with pytest.raises((TypeError, ValueError)):
+        FinancialTransaction(
+            transaction_id="101",
+            amount=Decimal("50000"),
+            currency="XAF",
+            status=invalid_status,
+            direction="income",
+        )
+        
+        
+def test_financial_transaction_stores_direction():
+    transaction = FinancialTransaction(
+        transaction_id="101",
+        amount=Decimal("500000"),
+        currency="XAF",
+        status="forecast",
+        direction="income",
+    )
+
+    assert transaction.direction == "income"
+    
+    
+@pytest.mark.parametrize(
+    "invalid_direction",
+    [
+        "",
+        "   ",
+        None,
+        123,
+        "unknown",
+        "INCOME",
+        "transfer",
+    ],
+)
+def test_financial_transaction_rejects_invalid_direction(
+    invalid_direction,
+):
+    with pytest.raises((TypeError, ValueError)):
+        FinancialTransaction(
+            transaction_id="101",
+            amount=Decimal("50000"),
+            currency="XAF",
+            status="forecast",
+            direction=invalid_direction,
         )

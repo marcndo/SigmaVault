@@ -72,6 +72,7 @@ class FinancialTransaction:
     amount: Decimal
     currency: str
     status: str
+    direction: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.amount, Decimal):
@@ -89,4 +90,18 @@ class FinancialTransaction:
         if not self.transaction_id.strip():
             raise ValueError("Transaction ID cannot be empty")
     
-        
+        if not isinstance(self.currency, str):
+            raise TypeError("Transaction currency must be a string")
+
+        if self.currency != "XAF":
+           raise ValueError("Unsupported transaction currency")
+        if not isinstance(self.status, str):
+            raise TypeError("Transaction status must be a string")
+
+        if self.status not in {"forecast", "actual"}:
+            raise ValueError("Unsupported transaction status")
+        if not isinstance(self.direction, str):
+            raise TypeError("Transaction direction must be a string")
+
+        if self.direction not in {"income", "expense"}:
+            raise ValueError("Unsupported transaction direction")
