@@ -3,6 +3,7 @@ from decimal import Decimal
 from enum import Enum
 from datetime import date, timedelta
 
+
 @dataclass(frozen=True)
 class Money:
     amount: Decimal
@@ -57,6 +58,11 @@ class LiquidityPosition:
     status : LiquidityStatus
     
             
-        
+@dataclass(frozen=True)
+class FinancialTransaction:
+    transaction_id: str
+    amount: Decimal
+    currency: str
+    status: str
 
     

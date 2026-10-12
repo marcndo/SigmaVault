@@ -2,12 +2,14 @@ from dataclasses import FrozenInstanceError
 from decimal import Decimal
 import pytest
 from datetime import date, timedelta
+from decimal import Decimal
 from sigmavault.treasury.domain import (Money,
                                         Obligation,
                                         ObligationSource, 
                                         TreasuryPolicy,
                                         LiquidityPosition,
-                                        LiquidityStatus)
+                                        LiquidityStatus,
+                                        FinancialTransaction)
 
 
 def test_money_can_be_created():
@@ -111,5 +113,17 @@ def test_liquidity_position_is_immutable():
         with pytest.raises(FrozenInstanceError):
             position.status = LiquidityStatus.SUFFICIENT
 
+def test_financial_transaction_stores_required_fields():
+    transaction = FinancialTransaction(
+        transaction_id="101",
+        amount=Decimal("125000.75"),
+        currency="XAF",
+        status="forecast",
+    )
+
+    assert transaction.transaction_id == "101"
+    assert transaction.amount == Decimal("125000.75")
+    assert transaction.currency == "XAF"
+    assert transaction.status == "forecast"
     
     
