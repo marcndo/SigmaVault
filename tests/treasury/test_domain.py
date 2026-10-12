@@ -127,3 +127,60 @@ def test_financial_transaction_stores_required_fields():
     assert transaction.status == "forecast"
     
     
+def test_financial_transaction_rejects_non_decimal_amount():
+    with pytest.raises(TypeError):
+        FinancialTransaction(
+            transaction_id="101",
+            amount="125000.75",
+            currency="XAF",
+            status="forecast",
+        )
+        
+@pytest.mark.parametrize(
+    "invalid_amount",
+    [
+        Decimal("NaN"),
+        Decimal("Infinity"),
+        Decimal("-Infinity"),
+    ],
+)
+def test_financial_transaction_rejects_non_finite_amount(
+    invalid_amount: Decimal,
+):
+    with pytest.raises(ValueError):
+        FinancialTransaction(
+            transaction_id="101",
+            amount=invalid_amount,
+            currency="XAF",
+            status="forecast",
+        )
+        
+
+def test_financial_transaction_rejects_negative_amount():
+    with pytest.raises(ValueError):
+        FinancialTransaction(
+            transaction_id="102",
+            amount=Decimal("-50000"),
+            currency="XAF",
+            status="forecast",
+        )
+        
+        
+        
+@pytest.mark.parametrize(
+    "invalid_id",
+    [
+        "",
+        "   ",
+        None,
+        123,
+    ],
+)
+def test_financial_transaction_rejects_invalid_identifier(invalid_id):
+    with pytest.raises((TypeError, ValueError)):
+        FinancialTransaction(
+            transaction_id=invalid_id,
+            amount=Decimal("50000"),
+            currency="XAF",
+            status="forecast",
+        )

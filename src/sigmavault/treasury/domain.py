@@ -64,5 +64,29 @@ class FinancialTransaction:
     amount: Decimal
     currency: str
     status: str
-
     
+    
+@dataclass(frozen=True)
+class FinancialTransaction:
+    transaction_id: str
+    amount: Decimal
+    currency: str
+    status: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.amount, Decimal):
+            raise TypeError("Transaction amount must be a Decimal")
+    
+        if not self.amount.is_finite():
+            raise ValueError("Transaction amount must be finite")
+    
+        if self.amount < 0:
+            raise ValueError("Transaction amount cannot be negative")
+    
+        if not isinstance(self.transaction_id, str):
+            raise TypeError("Transaction ID must be a string")
+    
+        if not self.transaction_id.strip():
+            raise ValueError("Transaction ID cannot be empty")
+    
+        
