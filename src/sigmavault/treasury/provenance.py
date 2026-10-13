@@ -32,3 +32,16 @@ def validate_transaction_provenance(
     """Validate that provenance belongs to the given transaction."""
     if transaction.transaction_id != provenance.transaction_id:
         raise ValueError("Transaction ID mismatch")
+    
+    
+def require_verified_actual(
+    transaction: FinancialTransaction,
+    provenance: TransactionProvenance,
+) -> None:
+    """Reject transactions that are not classified as actuals."""
+    if transaction.status != "actual":
+        raise ValueError("Transaction is not an actual")
+    if not provenance.verified:
+        raise ValueError("Transaction is not verified")
+    
+    validate_transaction_provenance(transaction, provenance)
