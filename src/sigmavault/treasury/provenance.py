@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from sigmavault.treasury.domain import FinancialTransaction
 
 from dataclasses import dataclass
 
@@ -23,3 +23,12 @@ class TransactionProvenance:
             raise ValueError("Invalid provenance source")
         if type(self.verified) is not bool:
             raise ValueError("Invalid verification status")
+        
+
+def validate_transaction_provenance(
+    transaction: FinancialTransaction,
+    provenance: TransactionProvenance,
+) -> None:
+    """Validate that provenance belongs to the given transaction."""
+    if transaction.transaction_id != provenance.transaction_id:
+        raise ValueError("Transaction ID mismatch")
