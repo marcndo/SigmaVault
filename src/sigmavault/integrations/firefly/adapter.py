@@ -12,6 +12,11 @@ def parse_firefly_transaction(
     if not isinstance(group, dict):
         raise ValueError("Invalid Firefly transaction group structure")
     
+    group_id = group.get("id")
+    
+    if not isinstance(group_id, str) or not group_id.strip():
+        raise ValueError("Invalid Firefly transaction group ID")
+    
     attributes = group.get("attributes")
     
     if not isinstance(attributes, dict):
@@ -45,7 +50,10 @@ def parse_firefly_transaction(
         "deposit": "income",
     }
     
-    if transaction_type not in direction_map:
+    if (
+        not isinstance(transaction_type, str)
+        or transaction_type not in direction_map
+    ):
         raise ValueError("Unsupported Firefly transaction type")
     
     direction = direction_map[transaction_type]
@@ -63,7 +71,7 @@ def parse_firefly_transaction(
         ) from exc
     
     return FinancialTransaction(
-        transaction_id=group["id"],
+        transaction_id=group_id,
         amount=amount,
         currency=transaction["currency_code"],
         status=status,

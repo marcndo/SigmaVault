@@ -316,3 +316,94 @@ def test_parse_firefly_rejects_non_finite_or_negative_amount(
             firefly_group,
             status="forecast",
         )
+        
+        
+def test_parse_firefly_rejects_missing_group_id():
+    firefly_group = {
+        "attributes": {
+            "transactions": [
+                {
+                    "type": "withdrawal",
+                    "amount": "25000",
+                    "currency_code": "XAF",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid Firefly transaction group ID",
+    ):
+        parse_firefly_transaction(
+            firefly_group,
+            status="forecast",
+        )
+        
+@pytest.mark.parametrize(
+    "invalid_id",
+    [
+        None,
+        123,
+        "",
+        "   ",
+        [],
+        {},
+    ],
+)
+def test_parse_firefly_rejects_invalid_group_id(
+    invalid_id,
+):
+    firefly_group = {
+        "id": invalid_id,
+        "attributes": {
+            "transactions": [
+                {
+                    "type": "withdrawal",
+                    "amount": "25000",
+                    "currency_code": "XAF",
+                }
+            ]
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid Firefly transaction group ID",
+    ):
+        parse_firefly_transaction(
+            firefly_group,
+            status="forecast",
+        )
+        
+@pytest.mark.parametrize(
+    "invalid_type",
+    [
+        [],
+        {},
+    ],
+)
+def test_parse_firefly_rejects_unhashable_transaction_type(
+    invalid_type,
+):
+    firefly_group = {
+        "id": "112",
+        "attributes": {
+            "transactions": [
+                {
+                    "type": invalid_type,
+                    "amount": "25000",
+                    "currency_code": "XAF",
+                }
+            ]
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported Firefly transaction type",
+    ):
+        parse_firefly_transaction(
+            firefly_group,
+            status="forecast",
+        )
