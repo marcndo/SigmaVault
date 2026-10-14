@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import date
 import json
 import hashlib
+from beancount.loader import load_string
+from beancount.core.data import Event
 from sigmavault.treasury.agent_decision import ALLOWED_OUTCOMES
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -198,6 +200,55 @@ def verify_signed_journal_entry(
 
     return actual_journal_digest == payload.journal_sha256
 
+
+def verify_journal_semantics(
+    payload: DecisionAuditPayloadV2,
+    journal_entry: str,
+) -> bool:
+    """Verify that a Beancount decision event agrees with its audit payload."""
+
+    entries, errors, _ = load_string(journal_entry)
+
+    if errors or len(entries) != 1:
+        return False
+
+    entry = entries[0]
+
+    if not isinstance(entry, Event):
+        return False
+
+    if entry.type != "SigmaVaultDecision":
+        return False
+
+    return (
+        entry.date == payload.event_date
+        and entry.description == f"{payload.decision_id}: {payload.outcome}"
+        and entry.meta.get("decision_id") == payload.decision_id
+        and entry.meta.get("outcome") == payload.outcome
+        and entry.meta.get("explanation") == payload.explanation
+    )
+
 def hash_beancount_entry(entry: str) -> str:
     """Compute the SHA-256 digest of a Beancount journal entry."""
     return hashlib.sha256(entry.encode("utf-8")).hexdigest()
+
+
+def verify_complete_decision_audit(
+    payload: DecisionAuditPayloadV2,
+    journal_entry: str,
+    signature: bytes,
+    public_key: Ed25519PublicKey,
+) -> bool:
+    """Verify signature, journal integrity, and decision semantics."""
+    return (
+        verify_signed_journal_entry(
+            payload=payload,
+            journal_entry=journal_entry,
+            signature=signature,
+            public_key=public_key,
+        )
+        and verify_journal_semantics(
+            payload=payload,
+            journal_entry=journal_entry,
+        )
+    )

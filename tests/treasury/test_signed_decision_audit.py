@@ -2,6 +2,9 @@ from datetime import date
 import json
 import pytest
 from dataclasses import replace
+from sigmavault.treasury.agent_decision import AgentDecision
+from sigmavault.treasury.beancount_decision_journal import render_decision_event
+from dataclasses import replace
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
 )
@@ -17,6 +20,8 @@ from sigmavault.treasury.signed_decision_audit import (
     sign_audit_payload_v2,
     verify_audit_signature_v2,
     verify_signed_journal_entry,
+    verify_journal_semantics,
+    verify_complete_decision_audit,
 )
 
 
@@ -819,4 +824,460 @@ def test_verify_signed_journal_entry_rejects_wrong_public_key():
         journal_entry=journal_entry,
         signature=signature,
         public_key=unrelated_public_key,
+    ) is False
+    
+    
+def test_verify_journal_semantics_accepts_matching_decision():
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    assert verify_journal_semantics(
+        payload=payload,
+        journal_entry=journal_entry,
+    ) is True
+    
+    
+@pytest.mark.parametrize(
+    ("field_name", "modified_value"),
+    [
+        ("decision_id", "DEC-999"),
+        ("outcome", "rejected"),
+        ("explanation", "The liquidity reserve has been depleted."),
+        ("event_date", date(2026, 10, 15)),
+    ],
+)
+def test_verify_journal_semantics_rejects_mismatched_fields(
+    field_name,
+    modified_value,
+):
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    original_payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    modified_payload = replace(
+        original_payload,
+        **{field_name: modified_value},
+    )
+
+    assert verify_journal_semantics(
+        payload=original_payload,
+        journal_entry=journal_entry,
+    ) is True
+
+    assert verify_journal_semantics(
+        payload=modified_payload,
+        journal_entry=journal_entry,
+    ) is False
+    
+    
+@pytest.mark.parametrize(
+    "malformed_journal",
+    [
+        "",
+        (
+            '2026-99-99 event "SigmaVaultDecision" "DEC-001: approved"\n'
+            '  decision_id: "DEC-001"\n'
+            '  outcome: "approved"\n'
+            '  explanation: "Reserve preserved."\n'
+        ),
+        (
+            '2026-10-14 event "SigmaVaultDecision" "DEC-001: approved"\n'
+            '  decision_id: "DEC-001"\n'
+            '  outcome: "approved"\n'
+            '  explanation: "Reserve preserved.\n'
+        ),
+    ],
+)
+def test_verify_journal_semantics_rejects_malformed_journal(
+    malformed_journal: str,
+):
+    payload = DecisionAuditPayloadV2(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="Reserve preserved.",
+        event_date=date(2026, 10, 14),
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(malformed_journal),
+    )
+
+    assert verify_journal_semantics(
+        payload=payload,
+        journal_entry=malformed_journal,
+    ) is False
+    
+    
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "decision_id",
+        "outcome",
+        "explanation",
+    ],
+)
+def test_verify_journal_semantics_rejects_missing_metadata(
+    missing_field: str,
+):
+    metadata = {
+        "decision_id": "DEC-001",
+        "outcome": "approved",
+        "explanation": "Reserve preserved.",
+    }
+
+    del metadata[missing_field]
+
+    journal_entry = (
+        '2026-10-14 event "SigmaVaultDecision" "DEC-001: approved"\n'
+        + "".join(
+            f'  {key}: "{value}"\n'
+            for key, value in metadata.items()
+        )
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="Reserve preserved.",
+        event_date=date(2026, 10, 14),
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    assert verify_journal_semantics(
+        payload=payload,
+        journal_entry=journal_entry,
+    ) is False
+    
+    
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "PaymentSettled",
+        "SigmaVaultExecution",
+        "TreasuryTransfer",
+        "SigmaVaultDecisionV2",
+    ],
+)
+def test_verify_journal_semantics_rejects_incorrect_event_type(
+    event_type: str,
+):
+    journal_entry = (
+        f'2026-10-14 event "{event_type}" "DEC-001: approved"\n'
+        '  decision_id: "DEC-001"\n'
+        '  outcome: "approved"\n'
+        '  explanation: "Reserve preserved."\n'
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="Reserve preserved.",
+        event_date=date(2026, 10, 14),
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    assert verify_journal_semantics(
+        payload=payload,
+        journal_entry=journal_entry,
+    ) is False
+    
+    
+def test_verify_complete_decision_audit_accepts_valid_record():
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    signature = sign_audit_payload_v2(
+        payload=payload,
+        private_key=private_key,
+    )
+
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=signature,
+        public_key=public_key,
+    ) is True
+    
+    
+def test_verify_complete_decision_audit_rejects_wrong_public_key():
+    authorized_private_key = Ed25519PrivateKey.generate()
+    attacker_private_key = Ed25519PrivateKey.generate()
+
+    trusted_public_key = authorized_private_key.public_key()
+
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    attacker_signature = sign_audit_payload_v2(
+        payload=payload,
+        private_key=attacker_private_key,
+    )
+
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=attacker_signature,
+        public_key=trusted_public_key,
+    ) is False
+    
+    
+def test_verify_complete_decision_audit_rejects_tampered_signature():
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    valid_signature = sign_audit_payload_v2(
+        payload=payload,
+        private_key=private_key,
+    )
+
+    # Confirm the original record is valid.
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=valid_signature,
+        public_key=public_key,
+    ) is True
+
+    # Flip one bit in the first byte of the signature.
+    tampered_signature = bytes(
+        [valid_signature[0] ^ 0x01]
+    ) + valid_signature[1:]
+
+    # The modified signature must be rejected.
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=tampered_signature,
+        public_key=public_key,
+    ) is False
+    
+    
+def test_verify_complete_decision_audit_rejects_tampered_journal():
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="The required liquidity reserve is preserved.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=decision,
+        event_date=event_date,
+    )
+
+    payload = DecisionAuditPayloadV2(
+        decision_id=decision.decision_id,
+        outcome=decision.outcome,
+        explanation=decision.explanation,
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    signature = sign_audit_payload_v2(
+        payload=payload,
+        private_key=private_key,
+    )
+
+    # The original signed journal must be accepted.
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=signature,
+        public_key=public_key,
+    ) is True
+
+    # Modify the journal AFTER the payload has been signed.
+    tampered_journal = journal_entry.replace(
+        "The required liquidity reserve is preserved.",
+        "The required liquidity reserve has been depleted.",
+    )
+
+    assert tampered_journal != journal_entry
+
+    # The signature remains valid for the original payload.
+    assert verify_audit_signature_v2(
+        payload=payload,
+        signature=signature,
+        public_key=public_key,
+    ) is True
+
+    # But the journal no longer matches the signed digest.
+    assert hash_beancount_entry(tampered_journal) != payload.journal_sha256
+
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=tampered_journal,
+        signature=signature,
+        public_key=public_key,
+    ) is False
+    
+    
+def test_verify_complete_decision_audit_rejects_semantic_mismatch():
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    # The journal records a rejected decision.
+    journal_decision = AgentDecision(
+        decision_id="DEC-001",
+        outcome="rejected",
+        explanation="Insufficient liquidity reserve.",
+    )
+
+    event_date = date(2026, 10, 14)
+
+    journal_entry = render_decision_event(
+        decision=journal_decision,
+        event_date=event_date,
+    )
+
+    # The audit payload instead claims the decision was approved.
+    payload = DecisionAuditPayloadV2(
+        decision_id="DEC-001",
+        outcome="approved",
+        explanation="Insufficient liquidity reserve.",
+        event_date=event_date,
+        policy_version="1.0.0",
+        journal_sha256=hash_beancount_entry(journal_entry),
+    )
+
+    signature = sign_audit_payload_v2(
+        payload=payload,
+        private_key=private_key,
+    )
+
+    # The signature is mathematically valid.
+    assert verify_audit_signature_v2(
+        payload=payload,
+        signature=signature,
+        public_key=public_key,
+    ) is True
+
+    # The journal also matches the signed SHA-256 digest.
+    assert hash_beancount_entry(journal_entry) == payload.journal_sha256
+
+    # Cryptographic verification alone accepts the record.
+    assert verify_signed_journal_entry(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=signature,
+        public_key=public_key,
+    ) is True
+
+    # Semantic verification detects the contradiction.
+    assert verify_journal_semantics(
+        payload=payload,
+        journal_entry=journal_entry,
+    ) is False
+
+    # Complete verification must reject the record.
+    assert verify_complete_decision_audit(
+        payload=payload,
+        journal_entry=journal_entry,
+        signature=signature,
+        public_key=public_key,
     ) is False
