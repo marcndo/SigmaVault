@@ -1281,3 +1281,31 @@ def test_verify_complete_decision_audit_rejects_semantic_mismatch():
         signature=signature,
         public_key=public_key,
     ) is False
+    
+@pytest.mark.parametrize(
+    "policy_version",
+    [
+        "",
+        " ",
+        "   ",
+        "\t",
+        "\n",
+        None,
+        123,
+    ],
+)
+def test_audit_payload_v2_rejects_invalid_policy_version(
+    policy_version,
+):
+    with pytest.raises(
+        ValueError,
+        match="Decision audit policy version must not be blank",
+    ):
+        DecisionAuditPayloadV2(
+            decision_id="DEC-001",
+            outcome="approved",
+            explanation="Liquidity safeguards are satisfied.",
+            event_date=date(2026, 10, 14),
+            policy_version=policy_version,
+            journal_sha256="a" * 64,
+        )
