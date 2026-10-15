@@ -1,7 +1,11 @@
 from decimal import Decimal, InvalidOperation
 
 from sigmavault.treasury.domain import FinancialTransaction
+from datetime import date
 
+from sigmavault.integrations.firefly.historical_record import (
+    FireflyHistoricalRecord,
+)
 
 def parse_firefly_transaction(
     group: dict,
@@ -76,4 +80,46 @@ def parse_firefly_transaction(
         currency=transaction["currency_code"],
         status=status,
         direction=direction,
+    )
+    
+
+def parse_firefly_historical_record(
+    group: dict,
+) -> FireflyHistoricalRecord:
+    """Normalize a dated, categorized Firefly transaction for forecasting."""
+
+    transaction = parse_firefly_transaction(
+        group,
+        status="forecast",
+    )
+
+    split = group["attributes"]["transactions"][0]
+
+    category = split.get("category_name")
+    subcategory = split.get("description")
+    raw_date = split.get("date")
+
+    if not isinstance(category, str) or not category.strip():
+        raise ValueError("Missing Firefly transaction category")
+
+    if not isinstance(subcategory, str) or not subcategory.strip():
+        raise ValueError("Missing Firefly transaction description")
+
+    if not isinstance(raw_date, str):
+        raise ValueError("Missing Firefly transaction date")
+
+    try:
+        transaction_date = date.fromisoformat(raw_date[:10])
+    except ValueError as exc:
+        raise ValueError("Invalid Firefly transaction date") from exc
+
+    return FireflyHistoricalRecord(
+        record_id=transaction.transaction_id,
+        category=category,
+        subcategory=subcategory,
+        record_type=transaction.direction,
+        status="unverified",
+        due_date=transaction_date,
+        amount=transaction.amount,
+        currency=transaction.currency,
     )
