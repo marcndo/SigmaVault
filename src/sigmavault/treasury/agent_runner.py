@@ -1,4 +1,5 @@
 from sigmavault.treasury.domain import LiquidityPosition
+from sigmavault.integrations.arc.wallet_snapshot import ArcWalletSnapshot
 from sigmavault.treasury.treasury_agent import (
     TreasuryAgentContext,
     TreasuryRecommendation,
@@ -10,6 +11,7 @@ def run_treasury_agent(
     position: LiquidityPosition,
     *,
     evidence_verified: bool = False,
+    arc_wallet_snapshot: ArcWalletSnapshot | None = None,
     model=None,
 ) -> TreasuryRecommendation:
     """Run an advisory treasury agent without execution authority."""
@@ -20,6 +22,7 @@ def run_treasury_agent(
         liquidity_shortfall=position.liquidity_shortfall.amount,
         currency=position.available_cash.currency,
         evidence_verified=evidence_verified,
+        arc_wallet_snapshot=arc_wallet_snapshot,
     )
 
     result = treasury_agent.run_sync(
