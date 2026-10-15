@@ -11,7 +11,9 @@ dependencies = [
     "beancount>=3.2.3",
     "cryptography>=50.0.2",
     "httpx>=0.28.1",
+    "pydantic-ai-slim[openai]>=2.56.0",
     "python-dotenv>=1.2.4",
+    "web3>=8.0.0",
 ]
 
 [build-system]
