@@ -1,10 +1,26 @@
-
 # Python-generated files
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 .venv/
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# Local financial data and audit artifacts
+/data/
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Temporary files
+touch

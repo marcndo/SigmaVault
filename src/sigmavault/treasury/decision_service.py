@@ -1,4 +1,8 @@
 from datetime import date
+from sigmavault.treasury.treasury_agent import TreasuryRecommendation
+from sigmavault.treasury.beancount_audit_journal import (
+    BeancountAuditJournal,
+)
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
@@ -23,10 +27,13 @@ class TreasuryDecisionService:
         repository: SignedDecisionRepository,
         private_key: Ed25519PrivateKey,
         policy_version: str,
+        journal: BeancountAuditJournal | None = None,
+
     ) -> None:
         self.repository = repository
         self.private_key = private_key
         self.policy_version = policy_version
+        self.journal = journal
 
     def assess_and_record(
         self,
@@ -59,6 +66,49 @@ class TreasuryDecisionService:
             private_key=self.private_key,
         )
 
+        if self.journal is not None:
+            self.journal.append(record)
+        
         self.repository.save(record)
-
+        
+        return record
+    
+    def record_recommendation(
+            self,
+            decision_id: str,
+            recommendation: TreasuryRecommendation,
+            event_date: date,
+        ) -> SignedDecisionRecord:
+        """Sign and persist the actual advisory agent recommendation."""
+    
+        if not recommendation.requires_human_review:
+            raise ValueError(
+                "Pilot recommendations must require human review"
+            )
+    
+        decision = AgentDecision(
+            decision_id=decision_id,
+            outcome="deferred",
+            explanation=(
+                f"Agent recommended action: {recommendation.action}. "
+                f"Agent explanation: {recommendation.explanation} "
+                f"Human review required; execution not authorized."
+            ),
+        )
+    
+        record = create_signed_decision_record(
+            decision=decision,
+            event_date=event_date,
+            policy_version=self.policy_version,
+            private_key=self.private_key,
+        )
+    
+        if self.journal is None:
+            raise RuntimeError(
+                "A Beancount journal is required for agent recommendations"
+            )
+    
+        self.journal.append(record)
+        self.repository.save(record)
+    
         return record
