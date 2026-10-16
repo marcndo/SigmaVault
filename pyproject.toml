@@ -14,6 +14,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic-ai-slim[openai]>=2.56.0",
     "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
     "uvicorn>=0.54.0",
     "web3>=8.0.0",
 ]

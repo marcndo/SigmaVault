@@ -4,7 +4,15 @@ from pathlib import Path
 from typing import Literal
 import os
 import sqlite3
+import csv
 from uuid import uuid4
+
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from fastapi import UploadFile, File
+from sigmavault.treasury.ingestion import load_financial_records
+
 from sigmavault.treasury.journal_synchronizer import synchronize_journal
 
 from sigmavault.treasury.audit_key_config import (
@@ -42,7 +50,6 @@ from sigmavault.treasury.obligation_assessment import (
 )
 from sigmavault.treasury.upcoming_obligations import UpcomingBill
 
-
 app = FastAPI(
     title="SigmaVault",
     description="AI-assisted treasury management for businesses",
@@ -62,6 +69,7 @@ AUDIT_JOURNAL_PATH = Path(
         "data/treasury_decisions.beancount",
     )
 )
+MAX_CSV_UPLOAD_BYTES = 5 * 1024 * 1024
 
 bill_repository = SQLiteUpcomingBillRepository(DATABASE_PATH)
 
@@ -342,4 +350,67 @@ def get_arc_wallet():
         "currency": "USDC",
         "observed_at": snapshot.observed_at.isoformat(),
         "execution_authorized": False,
+    }
+    
+    
+@app.post("/api/csv/preview")
+def preview_csv(file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=422,
+            detail="A CSV file is required",
+        )
+
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "upload.csv"
+
+        uploaded_bytes = 0
+
+        with path.open("wb") as destination:
+            while chunk := file.file.read(1024 * 1024):
+                uploaded_bytes += len(chunk)
+
+                if uploaded_bytes > MAX_CSV_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="CSV file is too large",
+                    )
+
+                destination.write(chunk)
+
+        try:
+            records = load_financial_records(path)
+
+        except (ValueError, UnicodeError, csv.Error) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+
+    return {
+        "valid": True,
+        "record_count": len(records),
+        "records": [
+            {
+                "record_id": record.record_id,
+                "description": record.description,
+                "category": record.category,
+                "amount": str(record.amount),
+                "currency": record.currency,
+                "record_type": record.record_type,
+                "transaction_date": (
+                    record.transaction_date.isoformat()
+                    if record.transaction_date
+                    else None
+                ),
+                "due_date": (
+                    record.due_date.isoformat()
+                    if record.due_date
+                    else None
+                ),
+                "status": record.status,
+                "source": record.source,
+            }
+            for record in records
+        ],
     }
