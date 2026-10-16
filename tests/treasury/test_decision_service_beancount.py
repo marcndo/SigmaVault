@@ -71,24 +71,7 @@ def test_decision_service_writes_signed_beancount_event(tmp_path):
     finally:
         connection.close()
 
-    # Verify that the actual Beancount file exists.
-    assert journal_path.exists()
-
-    journal_content = journal_path.read_text(
-        encoding="utf-8",
-    )
-
-    # Verify that the exact signed event was appended.
-    assert created_record.journal_entry in journal_content
-
-    assert "SigmaVaultDecision" in journal_content
-    assert "DEC-BEANCOUNT-001" in journal_content
-    assert "deferred" in journal_content
-
-    # Verify that the decision explanation appears in the file.
-    assert created_record.payload.explanation in journal_content
-
-    # Retrieve the signed record from a fresh database connection.
+    assert not journal_path.exists()
     connection = sqlite3.connect(database_path)
 
     try:

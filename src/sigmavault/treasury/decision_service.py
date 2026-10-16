@@ -66,13 +66,10 @@ class TreasuryDecisionService:
             private_key=self.private_key,
         )
 
-        if self.journal is not None:
-            self.journal.append(record)
-        
         self.repository.save(record)
         
         return record
-    
+            
     def record_recommendation(
             self,
             decision_id: str,
@@ -103,12 +100,6 @@ class TreasuryDecisionService:
             private_key=self.private_key,
         )
     
-        if self.journal is None:
-            raise RuntimeError(
-                "A Beancount journal is required for agent recommendations"
-            )
-    
-        self.journal.append(record)
         self.repository.save(record)
-    
+        
         return record

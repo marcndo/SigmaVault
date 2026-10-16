@@ -5,6 +5,7 @@ from typing import Literal
 import os
 import sqlite3
 from uuid import uuid4
+from sigmavault.treasury.journal_synchronizer import synchronize_journal
 
 from sigmavault.treasury.audit_key_config import (
     load_audit_private_key,
@@ -259,32 +260,39 @@ def recommend(request: AssessmentRequest):
     )
 
     connection = sqlite3.connect(DATABASE_PATH)
-
+    
     try:
         repository = SQLiteSignedDecisionRepository(connection)
-
+    
         service = TreasuryDecisionService(
             repository=repository,
             private_key=private_key,
             policy_version="pilot-v1",
             journal=journal,
         )
-
+    
         record = service.record_recommendation(
             decision_id=decision_id,
             recommendation=recommendation,
             event_date=request.as_of,
         )
-
+    
+        # First, durably commit the signed decision.
         connection.commit()
-
+    
+        # Then synchronize the committed decision to Beancount.
+        synchronize_journal(
+            connection=connection,
+            journal_path=AUDIT_JOURNAL_PATH,
+            public_key=private_key.public_key(),
+        )
+    
     except Exception:
         connection.rollback()
         raise
-
+    
     finally:
         connection.close()
-
     return {
         "decision_id": decision_id,
         "action": recommendation.action,
