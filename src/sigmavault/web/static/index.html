@@ -78,13 +78,38 @@
       padding: 14px;
       margin: 12px 0;
     }
+    .table-container {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+    .csv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    
+    .csv-table th,
+    .csv-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .csv-table th {
+      color: #7dd3fc;
+      background: #0b1220;
+    }
+    
+    .csv-table tbody tr:hover {
+      background: #1e293b;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Σ SigmaVault</h1>
-    <p>AI-assisted treasury management | OBSEC Pilot</p>
-  </header>
+    <p>AI-assisted treasury management for businesses</p>  </header>
 
   <main>
     <section class="panel">
@@ -156,6 +181,37 @@
 
   <div id="walletResult" class="metric" hidden></div>
   </section>
+  <section class="panel">
+  <h2>Financial Data Upload</h2>
+
+  <p>
+    Upload financial records exported from Excel as CSV.
+    Files are validated before any import.
+  </p>
+
+  <label for="csvFile">Select CSV File</label>
+  <input
+    id="csvFile"
+    type="file"
+    accept=".csv,text/csv"
+  >
+
+  <button id="previewCsvButton" type="button">
+    Preview CSV
+  </button>
+
+  <p id="csvPreviewStatus" role="status"></p>
+
+  <div id="csvPreviewResults" hidden>
+    <h3>Transaction Preview</h3>
+    <p id="csvRecordCount"></p>
+    <div id="csvTransactionTable"></div>
+  </div>
+
+  <p class="warning">
+    Preview only. No records are imported and no funds are transferred.
+  </p>
+</section>
   </main>
 
 <script>
@@ -473,6 +529,114 @@ async function loadArcWallet() {
   } catch (error) {
     showMessage(`Arc wallet unavailable: ${error.message}`, true);
   }
+}
+document.getElementById("previewCsvButton")
+  .addEventListener("click", previewCsv);
+
+async function previewCsv() {
+  const fileInput = document.getElementById("csvFile");
+  const status = document.getElementById("csvPreviewStatus");
+  const results = document.getElementById("csvPreviewResults");
+  const button = document.getElementById("previewCsvButton");
+
+  results.hidden = true;
+  status.textContent = "";
+  document.getElementById("csvTransactionTable").replaceChildren();
+
+  const file = fileInput.files[0];
+
+  if (!file) {
+    status.textContent = "Please select a CSV file.";
+    status.className = "error";
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    status.textContent = "CSV file is too large.";
+    status.className = "error";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  button.disabled = true;
+  status.textContent = "Validating CSV...";
+  status.className = "";
+
+  try {
+    const preview = await apiRequest("/api/csv/preview", {
+      method: "POST",
+      body: formData
+    });
+
+    document.getElementById("csvRecordCount").textContent =
+      `${preview.record_count} valid financial records found.`;
+      renderCsvTransactions(preview.records);
+
+    status.textContent = "CSV validation successful.";
+    results.hidden = false;
+
+  } catch (error) {
+    status.textContent = `CSV validation failed: ${error.message}`;
+    status.className = "error";
+
+  } finally {
+    button.disabled = false;
+  }
+}
+function renderCsvTransactions(records) {
+  const container = document.getElementById("csvTransactionTable");
+
+  container.replaceChildren();
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "table-container";
+
+  const table = document.createElement("table");
+  table.className = "csv-table";
+
+  const columns = [
+    ["record_id", "Transaction ID"],
+    ["description", "Description"],
+    ["category", "Category"],
+    ["amount", "Amount"],
+    ["currency", "Currency"],
+    ["record_type", "Type"],
+    ["due_date", "Due Date"],
+    ["status", "Status"]
+  ];
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+
+  for (const [, label] of columns) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    headerRow.appendChild(th);
+  }
+
+  thead.appendChild(headerRow);
+
+  const tbody = document.createElement("tbody");
+
+  for (const record of records) {
+    const row = document.createElement("tr");
+
+    for (const [field] of columns) {
+      const cell = document.createElement("td");
+
+      cell.textContent = record[field] ?? "—";
+
+      row.appendChild(cell);
+    }
+
+    tbody.appendChild(row);
+  }
+
+  table.append(thead, tbody);
+  wrapper.appendChild(table);
+  container.appendChild(wrapper);
 }
 </script>
 </body>
