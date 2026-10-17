@@ -3,6 +3,8 @@ from hashlib import sha256
 from pathlib import Path
 import secrets
 import sqlite3
+from fastapi import Depends, Request, Response, status
+from sigmavault.web.auth import AuthenticationService
 
 from pwdlib import PasswordHash
 

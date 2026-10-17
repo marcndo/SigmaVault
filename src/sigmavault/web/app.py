@@ -10,7 +10,10 @@ from sigmavault.treasury.csv_obligations import (
     csv_records_to_upcoming_bills,
 )
 import io
+import httpx
 
+from sigmavault.integrations.firefly.client import FireflyClient
+from sigmavault.pipeline.firefly_adapter import FireflySourceAdapter
 from fastapi.responses import StreamingResponse
 
 from sigmavault.treasury.audit_export import create_audit_export
@@ -71,6 +74,7 @@ DATABASE_PATH = Path(
         "data/sigmavault_pilot.sqlite3",
     )
 )
+
 AUDIT_JOURNAL_PATH = Path(
     os.getenv(
         "SIGMAVAULT_AUDIT_JOURNAL_PATH",
@@ -80,6 +84,36 @@ AUDIT_JOURNAL_PATH = Path(
 MAX_CSV_UPLOAD_BYTES = 5 * 1024 * 1024
 
 bill_repository = SQLiteUpcomingBillRepository(DATABASE_PATH)
+
+auth_service = AuthenticationService(DATABASE_PATH)
+
+SESSION_COOKIE = "sigmavault_session"
+TESTER_USERNAME = "obsec_tester"
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def require_tester(request: Request) -> str:
+    token = request.cookies.get(SESSION_COOKIE)
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    username = auth_service.get_session_username(token)
+
+    if username != TESTER_USERNAME:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
+
+    return username
 
 class BillInput(BaseModel):
     bill_id: str = Field(min_length=1)
@@ -123,6 +157,137 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, response: Response):
+    password_hash = os.getenv(
+        "SIGMAVAULT_TESTER_PASSWORD_HASH", ""
+    )
+
+    if not password_hash:
+        raise HTTPException(
+            status_code=503,
+            detail="Tester authentication is not configured",
+        )
+
+    valid = auth_service.verify_credentials(
+        username=payload.username,
+        password=payload.password,
+        expected_username=TESTER_USERNAME,
+        password_hash=password_hash,
+    )
+
+    if not valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+        )
+
+    token = auth_service.create_session(TESTER_USERNAME)
+
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        secure=os.getenv("SIGMAVAULT_COOKIE_SECURE") == "true",
+        samesite="strict",
+        max_age=8 * 60 * 60,
+        path="/",
+    )
+
+    return {"username": TESTER_USERNAME}
+
+
+@app.get("/api/auth/me")
+def current_tester(
+    username: str = Depends(require_tester),
+):
+    return {"username": username}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    token = request.cookies.get(SESSION_COOKIE)
+
+    if token:
+        auth_service.revoke_session(token)
+
+    response.delete_cookie(
+        key=SESSION_COOKIE,
+        path="/",
+        samesite="strict",
+        secure=os.getenv("SIGMAVAULT_COOKIE_SECURE") == "true",
+    )
+
+    return {"logged_out": True}
+
+@app.get("/api/firefly/transactions")
+def get_firefly_transactions():
+    base_url = os.getenv("FIREFLY_BASE_URL", "").strip()
+    token = os.getenv("FIREFLY_TOKEN", "").strip()
+    raw_account_id = os.getenv("FIREFLY_ACCOUNT_ID", "").strip()
+
+    if not base_url or not token or not raw_account_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Firefly III connection is not configured",
+        )
+
+    try:
+        account_id = int(raw_account_id)
+        if account_id <= 0:
+            raise ValueError
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Invalid Firefly III account configuration",
+        ) from exc
+
+    try:
+        with httpx.Client(
+            base_url=base_url,
+            timeout=20.0,
+        ) as http_client:
+            client = FireflyClient(
+                http_client=http_client,
+                token=token,
+            )
+
+            adapter = FireflySourceAdapter(
+                client=client,
+                account_id=account_id,
+                namespace=f"account-{account_id}",
+            )
+
+            records = adapter.fetch_records()
+
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve valid Firefly III transactions",
+        ) from exc
+
+    return {
+        "source": "firefly",
+        "account_id": account_id,
+        "record_count": len(records),
+        "records": [
+            {
+                "transaction_id": record.identity.record_id,
+                "description": record.description,
+                "category": record.category,
+                "amount": str(record.amount),
+                "currency": record.currency,
+                "direction": record.direction,
+                "transaction_date": (
+                    record.transaction_date.isoformat()
+                    if record.transaction_date else None
+                ),
+                "status": record.status,
+            }
+            for record in records
+        ],
+    }
 
 
 @app.post("/api/assess")

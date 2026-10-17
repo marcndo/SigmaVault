@@ -103,33 +103,6 @@
       padding: 14px;
       margin: 12px 0;
     }
-
-    .table-container {
-      overflow-x: auto;
-      margin-top: 16px;
-    }
-
-    .csv-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    .csv-table th,
-    .csv-table td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid #334155;
-    }
-
-    .csv-table th {
-      color: #7dd3fc;
-      background: #0b1220;
-    }
-
-    .csv-table tbody tr:hover {
-      background: #1e293b;
-    }
   </style>
 </head>
 
@@ -230,50 +203,6 @@
       </button>
 
       <div id="walletResult" class="metric" hidden></div>
-    </section>
-
-    <section class="panel">
-      <h2>Financial Data Upload</h2>
-
-      <p>
-        Upload financial records exported from Excel as CSV.
-        Preview and analyze the records before making treasury decisions.
-      </p>
-
-      <label for="csvFile">Select CSV File</label>
-
-      <input
-        id="csvFile"
-        type="file"
-        accept=".csv,text/csv"
-      >
-
-      <button id="previewCsvButton" type="button">
-        Preview CSV
-      </button>
-
-      <button id="analyzeCsvButton" type="button" disabled>
-        Analyze CSV
-      </button>
-
-      <p id="csvPreviewStatus" role="status" aria-live="polite"></p>
-
-      <div id="csvPreviewResults" hidden>
-        <h3>Transaction Preview</h3>
-        <p id="csvRecordCount"></p>
-        <div id="csvTransactionTable"></div>
-      </div>
-
-      <div id="csvAssessmentResults" class="metric" hidden>
-        <h3>CSV Liquidity Assessment</h3>
-        <div id="csvAssessmentMetrics" class="grid"></div>
-        <p id="csvAssessmentWarning" class="warning"></p>
-      </div>
-
-      <p class="warning">
-        CSV preview and assessment are read-only.
-        No records are imported and no funds are transferred.
-      </p>
     </section>
   </main>
 
