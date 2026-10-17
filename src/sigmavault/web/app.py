@@ -6,11 +6,19 @@ import os
 import sqlite3
 import csv
 from uuid import uuid4
+from sigmavault.treasury.csv_obligations import (
+    csv_records_to_upcoming_bills,
+)
+import io
+
+from fastapi.responses import StreamingResponse
+
+from sigmavault.treasury.audit_export import create_audit_export
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 from sigmavault.pipeline.csv_adapter import CSVSourceAdapter
 from sigmavault.pipeline.coordinator import FinancialDataPipeline
 from sigmavault.treasury.journal_synchronizer import synchronize_journal
@@ -420,3 +428,138 @@ def preview_csv(file: UploadFile = File(...)):
             for record in records
         ],
     }
+    
+@app.post("/api/csv/assess")
+def assess_csv(
+    file: UploadFile = File(...),
+    available_cash: str = Form(...),
+    minimum_buffer: str = Form(...),
+    as_of: date = Form(...),
+    planning_horizon_days: int = Form(30),
+):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=422,
+            detail="A CSV file is required",
+        )
+
+    if not 1 <= planning_horizon_days <= 365:
+        raise HTTPException(
+            status_code=422,
+            detail="Planning horizon must be between 1 and 365 days",
+        )
+
+    cash = parse_money(available_cash)
+    buffer = parse_money(minimum_buffer)
+
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "upload.csv"
+        uploaded_bytes = 0
+
+        with path.open("wb") as destination:
+            while chunk := file.file.read(1024 * 1024):
+                uploaded_bytes += len(chunk)
+
+                if uploaded_bytes > MAX_CSV_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="CSV file is too large",
+                    )
+
+                destination.write(chunk)
+
+        try:
+            source = CSVSourceAdapter(
+                path=path,
+                namespace="csv-assessment",
+            )
+
+            records = FinancialDataPipeline().process(source).records
+            bills = csv_records_to_upcoming_bills(records)
+
+            assessment = assess_upcoming_obligations(
+                bills=bills,
+                forecasts=[],
+                available_cash=cash,
+                minimum_buffer=buffer,
+                planning_horizon=timedelta(
+                    days=planning_horizon_days,
+                ),
+                as_of=as_of,
+            )
+
+        except (ValueError, UnicodeError, csv.Error) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+
+    position = assessment.position
+
+    return {
+        "currency": "XAF",
+        "source": "uploaded_csv",
+        "record_count": len(records),
+        "eligible_bill_count": len(bills),
+        "obligations_count": assessment.obligations_count,
+        "available_cash": str(position.available_cash.amount),
+        "required_liquidity": str(position.required_liquidity.amount),
+        "minimum_buffer": str(position.minimum_cash_buffer.amount),
+        "deployable_surplus": str(position.deployable_surplus.amount),
+        "liquidity_shortfall": str(position.liquidity_shortfall.amount),
+        "status": position.status.value,
+        "forecast_coverage_available": False,
+        "requires_human_review": True,
+        "execution_authorized": False,
+        "cash_source": "user_supplied_unverified",
+    }
+    
+@app.get("/api/audit/download")
+def download_signed_audit():
+    """Download verified, signed treasury decision artifacts."""
+
+    try:
+        private_key = load_audit_private_key()
+    except (RuntimeError, ValueError):
+        raise HTTPException(
+            status_code=503,
+            detail="Treasury audit signing is not configured",
+        )
+
+    DATABASE_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    connection = sqlite3.connect(DATABASE_PATH)
+
+    try:
+        exported = create_audit_export(
+            connection=connection,
+            journal_path=AUDIT_JOURNAL_PATH,
+            public_key=private_key.public_key(),
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Audit export unavailable: verification failed or no signed decisions exist",
+        ) from exc
+
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Audit export unavailable: journal reconciliation failed",
+        ) from exc
+
+    finally:
+        connection.close()
+
+    return StreamingResponse(
+        io.BytesIO(exported),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition":
+                'attachment; filename="sigmavault-audit-export.zip"'
+        },
+    )

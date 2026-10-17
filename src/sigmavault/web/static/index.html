@@ -4,24 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SigmaVault | Treasury Dashboard</title>
+
   <style>
     :root {
       font-family: system-ui, sans-serif;
       color: #e9edf5;
       background: #0b1220;
     }
+
     * { box-sizing: border-box; }
     body { margin: 0; }
+
     header {
       padding: 24px 6%;
       border-bottom: 1px solid #273247;
     }
+
     h1 { margin: 0; color: #7dd3fc; }
+
     main {
       max-width: 1100px;
       margin: auto;
       padding: 32px 20px;
     }
+
     .panel {
       background: #151f30;
       border: 1px solid #2a3a50;
@@ -29,16 +35,19 @@
       padding: 24px;
       margin-bottom: 24px;
     }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
     }
+
     label {
       display: block;
       margin: 12px 0;
       font-size: 14px;
     }
+
     input, select {
       width: 100%;
       padding: 12px;
@@ -48,6 +57,7 @@
       background: #0b1220;
       color: white;
     }
+
     button {
       padding: 12px 20px;
       background: #38bdf8;
@@ -58,62 +68,81 @@
       cursor: pointer;
       margin: 8px 8px 8px 0;
     }
-    .secondary { background: #334155; color: white; }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .secondary {
+      background: #334155;
+      color: white;
+    }
+
     .metric {
       padding: 18px;
       background: #0b1220;
       border-radius: 10px;
     }
+
     .metric small { color: #a7b5c9; }
+
     .metric strong {
       display: block;
       margin-top: 10px;
       font-size: 25px;
+      overflow-wrap: anywhere;
     }
+
     .warning { color: #fbbf24; }
     .error { color: #fca5a5; }
+
     .bill {
       border: 1px solid #334155;
       border-radius: 10px;
       padding: 14px;
       margin: 12px 0;
     }
+
     .table-container {
-  overflow-x: auto;
-  margin-top: 16px;
-}
+      overflow-x: auto;
+      margin-top: 16px;
+    }
 
     .csv-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 14px;
     }
-    
+
     .csv-table th,
     .csv-table td {
       padding: 12px;
       text-align: left;
       border-bottom: 1px solid #334155;
     }
-    
+
     .csv-table th {
       color: #7dd3fc;
       background: #0b1220;
     }
-    
+
     .csv-table tbody tr:hover {
       background: #1e293b;
     }
   </style>
 </head>
+
 <body>
   <header>
     <h1>Σ SigmaVault</h1>
-    <p>AI-assisted treasury management for businesses</p>  </header>
+    <p>AI-assisted treasury management for businesses</p>
+  </header>
 
   <main>
     <section class="panel">
       <h2>Treasury Configuration</h2>
+
       <p class="warning">
         Planning estimates only. Cash balances are not independently verified.
       </p>
@@ -123,14 +152,17 @@
           Available Cash (XAF)
           <input id="cash" type="number" min="0" value="100000">
         </label>
+
         <label>
           Minimum Cash Buffer (XAF)
           <input id="buffer" type="number" min="0" value="20000">
         </label>
+
         <label>
           Assessment Date
           <input id="asOf" type="date">
         </label>
+
         <label>
           Planning Horizon (days)
           <input id="horizon" type="number" min="1" max="365" value="30">
@@ -141,503 +173,708 @@
     <section class="panel">
       <h2>Upcoming Financial Obligations</h2>
       <div id="bills"></div>
-      <button class="secondary" onclick="addBill()">+ Add Bill</button>
-      <button onclick="runAssessment()">Assess Liquidity</button>
+
+      <button class="secondary" onclick="addBill()">
+        + Add Bill
+      </button>
+
+      <button onclick="runAssessment()">
+        Assess Liquidity
+      </button>
     </section>
 
     <section class="panel" id="results" hidden>
       <h2>Liquidity Assessment</h2>
+
       <div class="grid" id="metrics"></div>
       <p id="status"></p>
+
       <p class="warning">
         Forecast coverage is not yet integrated into this dashboard.
         No payment is authorized.
       </p>
     </section>
+
     <section class="panel">
-  <h2>AI Treasury Advisor</h2>
-  <p>
-    Review an advisory recommendation based on the current
-    treasury assessment.
-  </p>
+      <h2>AI Treasury Advisor</h2>
 
-  <button onclick="getRecommendation()">
-    Generate AI Recommendation
-  </button>
+      <p>
+        Review an advisory recommendation based on the current
+        manually entered treasury assessment.
+      </p>
 
-  <div id="agentResult" class="metric" hidden></div>
-</section>
+      <button onclick="getRecommendation()">
+        Generate AI Recommendation
+      </button>
+       <button
+  type="button"
+  class="secondary"
+  onclick="downloadSignedAudit()"
+>
+  Download Signed Audit Package
+</button>
 
-<section class="panel">
-  <h2>Arc Testnet Wallet</h2>
-  <p>
-    Read-only observation of the configured Arc Testnet wallet.
-    USDC is not included in XAF operating cash.
-  </p>
+      <div id="agentResult" class="metric" hidden></div>
+    </section>
 
-  <button onclick="loadArcWallet()">
-    Refresh Wallet
-  </button>
+    <section class="panel">
+      <h2>Arc Testnet Wallet</h2>
 
-  <div id="walletResult" class="metric" hidden></div>
-  </section>
-  <section class="panel">
-  <h2>Financial Data Upload</h2>
+      <p>
+        Read-only observation of the configured Arc Testnet wallet.
+        USDC is not included in XAF operating cash.
+      </p>
 
-  <p>
-    Upload financial records exported from Excel as CSV.
-    Files are validated before any import.
-  </p>
+      <button onclick="loadArcWallet()">
+        Refresh Wallet
+      </button>
 
-  <label for="csvFile">Select CSV File</label>
-  <input
-    id="csvFile"
-    type="file"
-    accept=".csv,text/csv"
-  >
+      <div id="walletResult" class="metric" hidden></div>
+    </section>
 
-  <button id="previewCsvButton" type="button">
-    Preview CSV
-  </button>
+    <section class="panel">
+      <h2>Financial Data Upload</h2>
 
-  <p id="csvPreviewStatus" role="status"></p>
+      <p>
+        Upload financial records exported from Excel as CSV.
+        Preview and analyze the records before making treasury decisions.
+      </p>
 
-  <div id="csvPreviewResults" hidden>
-    <h3>Transaction Preview</h3>
-    <p id="csvRecordCount"></p>
-    <div id="csvTransactionTable"></div>
-  </div>
+      <label for="csvFile">Select CSV File</label>
 
-  <p class="warning">
-    Preview only. No records are imported and no funds are transferred.
-  </p>
-</section>
+      <input
+        id="csvFile"
+        type="file"
+        accept=".csv,text/csv"
+      >
+
+      <button id="previewCsvButton" type="button">
+        Preview CSV
+      </button>
+
+      <button id="analyzeCsvButton" type="button" disabled>
+        Analyze CSV
+      </button>
+
+      <p id="csvPreviewStatus" role="status" aria-live="polite"></p>
+
+      <div id="csvPreviewResults" hidden>
+        <h3>Transaction Preview</h3>
+        <p id="csvRecordCount"></p>
+        <div id="csvTransactionTable"></div>
+      </div>
+
+      <div id="csvAssessmentResults" class="metric" hidden>
+        <h3>CSV Liquidity Assessment</h3>
+        <div id="csvAssessmentMetrics" class="grid"></div>
+        <p id="csvAssessmentWarning" class="warning"></p>
+      </div>
+
+      <p class="warning">
+        CSV preview and assessment are read-only.
+        No records are imported and no funds are transferred.
+      </p>
+    </section>
   </main>
 
-<script>
-  const billsContainer = document.getElementById("bills");
+  <script>
+    const billsContainer = document.getElementById("bills");
 
-  const today = new Date();
-  const localDate = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0")
-  ].join("-");
+    const today = new Date();
+    const localDate = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0")
+    ].join("-");
 
-  document.getElementById("asOf").value = localDate;
+    document.getElementById("asOf").value = localDate;
 
-  function showMessage(message, isError = false) {
-    let element = document.getElementById("notification");
+    function showMessage(message, isError = false) {
+      let element = document.getElementById("notification");
 
-    if (!element) {
-      element = document.createElement("p");
-      element.id = "notification";
-      billsContainer.before(element);
-    }
-
-    element.textContent = message;
-    element.className = isError ? "error" : "";
-  }
-
-  async function apiRequest(url, options = {}) {
-    const response = await fetch(url, options);
-    const result = await response.json();
-
-    if (!response.ok) {
-      const detail = result.detail;
-      const message = typeof detail === "string"
-        ? detail
-        : JSON.stringify(detail);
-
-      throw new Error(message || `HTTP ${response.status}`);
-    }
-
-    return result;
-  }
-
-  function addBill(savedBill = null) {
-    const element = document.createElement("div");
-    element.className = "bill";
-    element.dataset.id = savedBill?.bill_id || crypto.randomUUID();
-    element.dataset.saved = savedBill ? "true" : "false";
-
-    element.innerHTML = `
-      <div class="grid">
-        <label>Bill Name
-          <input class="bill-name" placeholder="Office rent">
-        </label>
-        <label>Amount (XAF)
-          <input class="bill-amount" type="number" min="0" step="any">
-        </label>
-        <label>Due Date
-          <input class="bill-date" type="date">
-        </label>
-        <label>Status
-          <select class="bill-status">
-            <option value="confirmed">Confirmed</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="estimated">Estimated</option>
-          </select>
-        </label>
-      </div>
-      <button class="save-bill">Save Bill</button>
-      <button class="secondary remove-bill">Remove</button>
-    `;
-
-    const fields = [
-      element.querySelector(".bill-name"),
-      element.querySelector(".bill-amount"),
-      element.querySelector(".bill-date"),
-      element.querySelector(".bill-status")
-    ];
-
-    if (savedBill) {
-      fields[0].value = savedBill.name;
-      fields[1].value = savedBill.amount;
-      fields[2].value = savedBill.due_date;
-      fields[3].value = savedBill.status;
-
-      fields.forEach(field => field.disabled = true);
-      element.querySelector(".save-bill").hidden = true;
-    }
-
-    element.querySelector(".save-bill").addEventListener(
-      "click",
-      () => saveBill(element)
-    );
-
-    element.querySelector(".remove-bill").addEventListener(
-      "click",
-      () => removeBill(element)
-    );
-
-    billsContainer.appendChild(element);
-  }
-
-  function billFromElement(element) {
-    return {
-      bill_id: element.dataset.id,
-      name: element.querySelector(".bill-name").value.trim(),
-      amount: element.querySelector(".bill-amount").value,
-      due_date: element.querySelector(".bill-date").value,
-      status: element.querySelector(".bill-status").value
-    };
-  }
-
-  async function loadBills() {
-    try {
-      const bills = await apiRequest("/api/bills");
-
-      billsContainer.replaceChildren();
-
-      for (const bill of bills) {
-        addBill(bill);
+      if (!element) {
+        element = document.createElement("p");
+        element.id = "notification";
+        billsContainer.before(element);
       }
 
-      showMessage(`${bills.length} saved bill(s) loaded.`);
-    } catch (error) {
-      showMessage(`Could not load bills: ${error.message}`, true);
-    }
-  }
-
-  async function saveBill(element) {
-    const bill = billFromElement(element);
-
-    if (!bill.name || !bill.amount || !bill.due_date) {
-      showMessage("Complete all bill fields before saving.", true);
-      return;
+      element.textContent = message;
+      element.className = isError ? "error" : "";
     }
 
-    const button = element.querySelector(".save-bill");
-    button.disabled = true;
+    async function apiRequest(url, options = {}) {
+      const response = await fetch(url, options);
+      const result = await response.json();
 
-    try {
-      await apiRequest("/api/bills", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(bill)
-      });
+      if (!response.ok) {
+        const detail = result.detail;
+        const message = typeof detail === "string"
+          ? detail
+          : JSON.stringify(detail);
 
-      await loadBills();
-      showMessage(`Saved "${bill.name}" successfully.`);
-    } catch (error) {
-      button.disabled = false;
-      showMessage(`Could not save bill: ${error.message}`, true);
-    }
-  }
+        throw new Error(message || `HTTP ${response.status}`);
+      }
 
-  async function removeBill(element) {
-    if (element.dataset.saved !== "true") {
-      element.remove();
-      return;
+      return result;
     }
 
-    const billId = element.dataset.id;
-    const billName = element.querySelector(".bill-name").value;
+    function metric(label, value) {
+      const box = document.createElement("div");
+      box.className = "metric";
 
-    if (!confirm(`Delete "${billName}"?`)) {
-      return;
+      const small = document.createElement("small");
+      small.textContent = label;
+
+      const strong = document.createElement("strong");
+      strong.textContent = value ?? "—";
+
+      box.append(small, strong);
+      return box;
     }
 
-    try {
-      await apiRequest(
-        `/api/bills/${encodeURIComponent(billId)}`,
-        {method: "DELETE"}
+    function addBill(savedBill = null) {
+      const element = document.createElement("div");
+      element.className = "bill";
+      element.dataset.id = savedBill?.bill_id || crypto.randomUUID();
+      element.dataset.saved = savedBill ? "true" : "false";
+
+      element.innerHTML = `
+        <div class="grid">
+          <label>Bill Name
+            <input class="bill-name" placeholder="Office rent">
+          </label>
+          <label>Amount (XAF)
+            <input class="bill-amount" type="number" min="0" step="any">
+          </label>
+          <label>Due Date
+            <input class="bill-date" type="date">
+          </label>
+          <label>Status
+            <select class="bill-status">
+              <option value="confirmed">Confirmed</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="estimated">Estimated</option>
+            </select>
+          </label>
+        </div>
+        <button class="save-bill">Save Bill</button>
+        <button class="secondary remove-bill">Remove</button>
+      `;
+
+      const fields = [
+        element.querySelector(".bill-name"),
+        element.querySelector(".bill-amount"),
+        element.querySelector(".bill-date"),
+        element.querySelector(".bill-status")
+      ];
+
+      if (savedBill) {
+        fields[0].value = savedBill.name;
+        fields[1].value = savedBill.amount;
+        fields[2].value = savedBill.due_date;
+        fields[3].value = savedBill.status;
+
+        fields.forEach(field => field.disabled = true);
+        element.querySelector(".save-bill").hidden = true;
+      }
+
+      element.querySelector(".save-bill").addEventListener(
+        "click",
+        () => saveBill(element)
       );
 
-      element.remove();
-      showMessage(`Deleted "${billName}".`);
-    } catch (error) {
-      showMessage(`Could not delete bill: ${error.message}`, true);
-    }
-  }
-
-  function metric(label, value) {
-    const box = document.createElement("div");
-    box.className = "metric";
-
-    const small = document.createElement("small");
-    small.textContent = label;
-
-    const strong = document.createElement("strong");
-    strong.textContent = value;
-
-    box.append(small, strong);
-    return box;
-  }
-
-  async function runAssessment() {
-    const unsaved = document.querySelector(
-      '.bill[data-saved="false"]'
-    );
-
-    if (unsaved) {
-      showMessage(
-        "Save or remove all unsaved bills before assessing liquidity.",
-        true
+      element.querySelector(".remove-bill").addEventListener(
+        "click",
+        () => removeBill(element)
       );
-      return;
+
+      billsContainer.appendChild(element);
     }
 
-    const request = {
-      available_cash: document.getElementById("cash").value,
-      minimum_buffer: document.getElementById("buffer").value,
-      as_of: document.getElementById("asOf").value,
-      planning_horizon_days: Number(
+    function billFromElement(element) {
+      return {
+        bill_id: element.dataset.id,
+        name: element.querySelector(".bill-name").value.trim(),
+        amount: element.querySelector(".bill-amount").value,
+        due_date: element.querySelector(".bill-date").value,
+        status: element.querySelector(".bill-status").value
+      };
+    }
+
+    async function loadBills() {
+      try {
+        const bills = await apiRequest("/api/bills");
+
+        billsContainer.replaceChildren();
+
+        for (const bill of bills) {
+          addBill(bill);
+        }
+
+        showMessage(`${bills.length} saved bill(s) loaded.`);
+      } catch (error) {
+        showMessage(`Could not load bills: ${error.message}`, true);
+      }
+    }
+
+    async function saveBill(element) {
+      const bill = billFromElement(element);
+
+      if (!bill.name || !bill.amount || !bill.due_date) {
+        showMessage("Complete all bill fields before saving.", true);
+        return;
+      }
+
+      const button = element.querySelector(".save-bill");
+      button.disabled = true;
+
+      try {
+        await apiRequest("/api/bills", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(bill)
+        });
+
+        await loadBills();
+        showMessage(`Saved "${bill.name}" successfully.`);
+      } catch (error) {
+        button.disabled = false;
+        showMessage(`Could not save bill: ${error.message}`, true);
+      }
+    }
+
+    async function removeBill(element) {
+      if (element.dataset.saved !== "true") {
+        element.remove();
+        return;
+      }
+
+      const billId = element.dataset.id;
+      const billName = element.querySelector(".bill-name").value;
+
+      if (!confirm(`Delete "${billName}"?`)) {
+        return;
+      }
+
+      try {
+        await apiRequest(
+          `/api/bills/${encodeURIComponent(billId)}`,
+          {method: "DELETE"}
+        );
+
+        element.remove();
+        showMessage(`Deleted "${billName}".`);
+      } catch (error) {
+        showMessage(`Could not delete bill: ${error.message}`, true);
+      }
+    }
+
+    async function runAssessment() {
+      const unsaved = document.querySelector(
+        '.bill[data-saved="false"]'
+      );
+
+      if (unsaved) {
+        showMessage(
+          "Save or remove all unsaved bills before assessing liquidity.",
+          true
+        );
+        return;
+      }
+
+      const request = {
+        available_cash: document.getElementById("cash").value,
+        minimum_buffer: document.getElementById("buffer").value,
+        as_of: document.getElementById("asOf").value,
+        planning_horizon_days: Number(
+          document.getElementById("horizon").value
+        ),
+        bills: []
+      };
+
+      try {
+        const result = await apiRequest("/api/assess", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(request)
+        });
+
+        const metrics = document.getElementById("metrics");
+
+        metrics.replaceChildren(
+          metric("Available Cash", result.available_cash + " XAF"),
+          metric("Required Liquidity", result.required_liquidity + " XAF"),
+          metric("Cash Buffer", result.minimum_buffer + " XAF"),
+          metric(
+            "Calculated Planning Surplus",
+            result.deployable_surplus + " XAF"
+          ),
+          metric("Shortfall", result.liquidity_shortfall + " XAF")
+        );
+
+        document.getElementById("status").textContent =
+          `Liquidity: ${result.status} | ` +
+          `Obligations: ${result.obligations_count} | ` +
+          `Human review required: ${result.requires_human_review}`;
+
+        document.getElementById("results").hidden = false;
+        showMessage("Liquidity assessment completed.");
+      } catch (error) {
+        showMessage(`Assessment failed: ${error.message}`, true);
+      }
+    }
+
+    async function getRecommendation() {
+      const unsaved = document.querySelector(
+        '.bill[data-saved="false"]'
+      );
+
+      if (unsaved) {
+        showMessage("Save or remove unsaved bills first.", true);
+        return;
+      }
+
+      const request = {
+        available_cash: document.getElementById("cash").value,
+        minimum_buffer: document.getElementById("buffer").value,
+        as_of: document.getElementById("asOf").value,
+        planning_horizon_days: Number(
+          document.getElementById("horizon").value
+        ),
+        bills: []
+      };
+
+      const resultElement = document.getElementById("agentResult");
+      resultElement.hidden = true;
+
+      try {
+        const result = await apiRequest("/api/agent/recommend", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(request)
+        });
+
+        resultElement.replaceChildren(
+          metric("Recommendation", result.action),
+          metric("Explanation", result.explanation),
+          metric("Model", result.model_mode),
+          metric(
+            "Human Review",
+            result.requires_human_review ? "Required" : "Not required"
+          ),
+          metric("Audit Signed", result.audit?.signed ? "Yes" : "No"),
+          metric("Decision ID", result.decision_id)
+        );
+
+        resultElement.hidden = false;
+      } catch (error) {
+        showMessage(`AI recommendation failed: ${error.message}`, true);
+      }
+    }
+
+    async function loadArcWallet() {
+      const resultElement = document.getElementById("walletResult");
+      resultElement.hidden = true;
+
+      try {
+        const wallet = await apiRequest("/api/arc/wallet");
+
+        resultElement.replaceChildren(
+          metric("Network", wallet.network),
+          metric("Chain ID", String(wallet.chain_id)),
+          metric("Observed Block", String(wallet.block_number)),
+          metric(
+            "Wallet Balance",
+            wallet.native_usdc_balance + " USDC"
+          ),
+          metric("Observed At", wallet.observed_at)
+        );
+
+        resultElement.hidden = false;
+      } catch (error) {
+        showMessage(`Arc wallet unavailable: ${error.message}`, true);
+      }
+    }
+
+    // CSV PREVIEW AND ASSESSMENT
+
+    let validatedCsvFile = null;
+    let previewGeneration = 0;
+
+    const csvFileInput = document.getElementById("csvFile");
+    const previewCsvButton = document.getElementById("previewCsvButton");
+    const analyzeCsvButton = document.getElementById("analyzeCsvButton");
+
+    previewCsvButton.addEventListener("click", previewCsv);
+    analyzeCsvButton.addEventListener("click", analyzeCsv);
+
+    csvFileInput.addEventListener("change", () => {
+      previewGeneration += 1;
+      validatedCsvFile = null;
+
+      analyzeCsvButton.disabled = true;
+      document.getElementById("csvPreviewResults").hidden = true;
+      document.getElementById("csvAssessmentResults").hidden = true;
+      document.getElementById("csvPreviewStatus").textContent = "";
+      document.getElementById("csvTransactionTable").replaceChildren();
+    });
+
+    async function previewCsv() {
+      const file = csvFileInput.files[0];
+      const status = document.getElementById("csvPreviewStatus");
+      const results = document.getElementById("csvPreviewResults");
+      const generation = ++previewGeneration;
+
+      validatedCsvFile = null;
+      analyzeCsvButton.disabled = true;
+      results.hidden = true;
+
+      document.getElementById("csvAssessmentResults").hidden = true;
+      document.getElementById("csvTransactionTable").replaceChildren();
+
+      status.className = "";
+
+      if (!file) {
+        status.textContent = "Please select a CSV file.";
+        status.className = "error";
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        status.textContent = "CSV file is too large.";
+        status.className = "error";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      previewCsvButton.disabled = true;
+      status.textContent = "Validating CSV...";
+
+      try {
+        const preview = await apiRequest("/api/csv/preview", {
+          method: "POST",
+          body: formData
+        });
+
+        if (
+          generation !== previewGeneration ||
+          csvFileInput.files[0] !== file
+        ) {
+          return;
+        }
+
+        document.getElementById("csvRecordCount").textContent =
+          `${preview.record_count} valid financial records found.`;
+
+        renderCsvTransactions(preview.records);
+
+        validatedCsvFile = file;
+        analyzeCsvButton.disabled = false;
+        results.hidden = false;
+
+        status.textContent = "CSV validation successful.";
+      } catch (error) {
+        if (
+          generation !== previewGeneration ||
+          csvFileInput.files[0] !== file
+        ) {
+          return;
+        }
+
+        status.textContent =
+          `CSV validation failed: ${error.message}`;
+        status.className = "error";
+      } finally {
+        previewCsvButton.disabled = false;
+      }
+    }
+
+    function renderCsvTransactions(records) {
+      const container = document.getElementById("csvTransactionTable");
+      container.replaceChildren();
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "table-container";
+
+      const table = document.createElement("table");
+      table.className = "csv-table";
+
+      const columns = [
+        ["record_id", "Transaction ID"],
+        ["description", "Description"],
+        ["category", "Category"],
+        ["amount", "Amount"],
+        ["currency", "Currency"],
+        ["record_type", "Type"],
+        ["due_date", "Due Date"],
+        ["status", "Status"]
+      ];
+
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+
+      for (const [, label] of columns) {
+        const th = document.createElement("th");
+        th.textContent = label;
+        headerRow.appendChild(th);
+      }
+
+      thead.appendChild(headerRow);
+
+      const tbody = document.createElement("tbody");
+
+      for (const record of records) {
+        const row = document.createElement("tr");
+
+        for (const [field] of columns) {
+          const cell = document.createElement("td");
+          cell.textContent = record[field] ?? "—";
+          row.appendChild(cell);
+        }
+
+        tbody.appendChild(row);
+      }
+
+      table.append(thead, tbody);
+      wrapper.appendChild(table);
+      container.appendChild(wrapper);
+    }
+
+    async function analyzeCsv() {
+      const file = csvFileInput.files[0];
+      const results = document.getElementById("csvAssessmentResults");
+      const metrics = document.getElementById("csvAssessmentMetrics");
+      const warning = document.getElementById("csvAssessmentWarning");
+      const status = document.getElementById("csvPreviewStatus");
+
+      if (!file || file !== validatedCsvFile) {
+        status.textContent =
+          "Preview and validate the selected CSV first.";
+        status.className = "error";
+        return;
+      }
+
+      const generation = previewGeneration;
+      const formData = new FormData();
+
+      formData.append("file", file);
+      formData.append(
+        "available_cash",
+        document.getElementById("cash").value
+      );
+      formData.append(
+        "minimum_buffer",
+        document.getElementById("buffer").value
+      );
+      formData.append(
+        "as_of",
+        document.getElementById("asOf").value
+      );
+      formData.append(
+        "planning_horizon_days",
         document.getElementById("horizon").value
-      ),
-      bills: []
-    };
-
-    try {
-      const result = await apiRequest("/api/assess", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(request)
-      });
-
-      const metrics = document.getElementById("metrics");
-
-      metrics.replaceChildren(
-        metric("Available Cash", result.available_cash + " XAF"),
-        metric("Required Liquidity", result.required_liquidity + " XAF"),
-        metric("Cash Buffer", result.minimum_buffer + " XAF"),
-        metric("Calculated Planning Surplus",
-               result.deployable_surplus + " XAF"),
-        metric("Shortfall", result.liquidity_shortfall + " XAF")
       );
 
-      document.getElementById("status").textContent =
-        `Liquidity: ${result.status} | ` +
-        `Obligations: ${result.obligations_count} | ` +
-        `Human review required: ${result.requires_human_review}`;
+      analyzeCsvButton.disabled = true;
+      results.hidden = true;
+      status.className = "";
+      status.textContent = "Analyzing financial records...";
 
-      document.getElementById("results").hidden = false;
+      try {
+        const assessment = await apiRequest("/api/csv/assess", {
+          method: "POST",
+          body: formData
+        });
 
-      showMessage("Liquidity assessment completed.");
-    } catch (error) {
-      showMessage(`Assessment failed: ${error.message}`, true);
-    }
-  }
+        if (
+          generation !== previewGeneration ||
+          csvFileInput.files[0] !== file
+        ) {
+          return;
+        }
 
-  loadBills();
-  async function getRecommendation() {
-  const unsaved = document.querySelector(
-    '.bill[data-saved="false"]'
-  );
+        metrics.replaceChildren(
+          metric("Financial Records", assessment.record_count),
+          metric("Eligible CSV Bills", assessment.eligible_bill_count),
+          metric("Bills Within Horizon", assessment.obligations_count),
+          metric(
+            "Available Cash",
+            assessment.available_cash + " XAF"
+          ),
+          metric(
+            "Required Liquidity",
+            assessment.required_liquidity + " XAF"
+          ),
+          metric(
+            "Minimum Buffer",
+            assessment.minimum_buffer + " XAF"
+          ),
+          metric(
+            "Deployable Surplus",
+            assessment.deployable_surplus + " XAF"
+          ),
+          metric(
+            "Liquidity Shortfall",
+            assessment.liquidity_shortfall + " XAF"
+          ),
+          metric("Treasury Status", assessment.status)
+        );
 
-  if (unsaved) {
-    showMessage("Save or remove unsaved bills first.", true);
-    return;
-  }
+        warning.textContent =
+          "Advisory assessment only. " +
+          "Cash balance is user-supplied and unverified. " +
+          "No funds have been transferred or authorized for execution.";
 
-  const request = {
-    available_cash: document.getElementById("cash").value,
-    minimum_buffer: document.getElementById("buffer").value,
-    as_of: document.getElementById("asOf").value,
-    planning_horizon_days: Number(
-      document.getElementById("horizon").value
-    ),
-    bills: []
-  };
+        results.hidden = false;
+        status.textContent = "CSV liquidity assessment completed.";
+      } catch (error) {
+        if (
+          generation !== previewGeneration ||
+          csvFileInput.files[0] !== file
+        ) {
+          return;
+        }
 
-  const resultElement = document.getElementById("agentResult");
-
-  try {
-    const result = await apiRequest("/api/agent/recommend", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(request)
-    });
-
-    resultElement.replaceChildren(
-      metric("Recommendation", result.action),
-      metric("Explanation", result.explanation),
-      metric("Model", result.model_mode),
-      metric(
-        "Human Review",
-        result.requires_human_review ? "Required" : "Not required"
-      )
-    );
-
-    resultElement.hidden = false;
-
-  } catch (error) {
-    showMessage(`AI recommendation failed: ${error.message}`, true);
-  }
-}
-
-async function loadArcWallet() {
-  const resultElement = document.getElementById("walletResult");
-
-  try {
-    const wallet = await apiRequest("/api/arc/wallet");
-
-    resultElement.replaceChildren(
-      metric("Network", wallet.network),
-      metric("Chain ID", String(wallet.chain_id)),
-      metric("Observed Block", String(wallet.block_number)),
-      metric(
-        "Wallet Balance",
-        wallet.native_usdc_balance + " USDC"
-      ),
-      metric("Observed At", wallet.observed_at)
-    );
-
-    resultElement.hidden = false;
-
-  } catch (error) {
-    showMessage(`Arc wallet unavailable: ${error.message}`, true);
-  }
-}
-document.getElementById("previewCsvButton")
-  .addEventListener("click", previewCsv);
-
-async function previewCsv() {
-  const fileInput = document.getElementById("csvFile");
-  const status = document.getElementById("csvPreviewStatus");
-  const results = document.getElementById("csvPreviewResults");
-  const button = document.getElementById("previewCsvButton");
-
-  results.hidden = true;
-  status.textContent = "";
-  document.getElementById("csvTransactionTable").replaceChildren();
-
-  const file = fileInput.files[0];
-
-  if (!file) {
-    status.textContent = "Please select a CSV file.";
-    status.className = "error";
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    status.textContent = "CSV file is too large.";
-    status.className = "error";
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  button.disabled = true;
-  status.textContent = "Validating CSV...";
-  status.className = "";
-
-  try {
-    const preview = await apiRequest("/api/csv/preview", {
-      method: "POST",
-      body: formData
-    });
-
-    document.getElementById("csvRecordCount").textContent =
-      `${preview.record_count} valid financial records found.`;
-      renderCsvTransactions(preview.records);
-
-    status.textContent = "CSV validation successful.";
-    results.hidden = false;
-
-  } catch (error) {
-    status.textContent = `CSV validation failed: ${error.message}`;
-    status.className = "error";
-
-  } finally {
-    button.disabled = false;
-  }
-}
-function renderCsvTransactions(records) {
-  const container = document.getElementById("csvTransactionTable");
-
-  container.replaceChildren();
-
-  const wrapper = document.createElement("div");
-  wrapper.className = "table-container";
-
-  const table = document.createElement("table");
-  table.className = "csv-table";
-
-  const columns = [
-    ["record_id", "Transaction ID"],
-    ["description", "Description"],
-    ["category", "Category"],
-    ["amount", "Amount"],
-    ["currency", "Currency"],
-    ["record_type", "Type"],
-    ["due_date", "Due Date"],
-    ["status", "Status"]
-  ];
-
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-
-  for (const [, label] of columns) {
-    const th = document.createElement("th");
-    th.textContent = label;
-    headerRow.appendChild(th);
-  }
-
-  thead.appendChild(headerRow);
-
-  const tbody = document.createElement("tbody");
-
-  for (const record of records) {
-    const row = document.createElement("tr");
-
-    for (const [field] of columns) {
-      const cell = document.createElement("td");
-
-      cell.textContent = record[field] ?? "—";
-
-      row.appendChild(cell);
+        status.textContent =
+          `Assessment failed: ${error.message}`;
+        status.className = "error";
+      } finally {
+        analyzeCsvButton.disabled =
+          validatedCsvFile !== csvFileInput.files[0];
+      }
     }
 
-    tbody.appendChild(row);
-  }
+    loadBills();
+    async function downloadSignedAudit() {
+  try {
+    const response = await fetch("/api/audit/download");
 
-  table.append(thead, tbody);
-  wrapper.appendChild(table);
-  container.appendChild(wrapper);
+    if (!response.ok) {
+      throw new Error(
+        `Audit download failed (HTTP ${response.status})`
+      );
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sigmavault-audit-export.zip";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    showMessage("Signed audit package downloaded.");
+  } catch (error) {
+    showMessage(error.message, true);
+  }
 }
-</script>
+  </script>
 </body>
 </html>
