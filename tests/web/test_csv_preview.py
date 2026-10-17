@@ -192,3 +192,63 @@ def test_preview_rejects_oversized_csv():
 
     assert response.status_code == 413
     assert "too large" in response.json()["detail"].lower()
+    
+
+def test_csv_preview_uses_unified_pipeline(monkeypatch):
+    from sigmavault.web import app as web_app
+
+    calls = []
+
+    original_process = web_app.FinancialDataPipeline.process
+
+    def tracking_process(self, source):
+        calls.append(source)
+        return original_process(self, source)
+
+    monkeypatch.setattr(
+        web_app.FinancialDataPipeline,
+        "process",
+        tracking_process,
+    )
+
+    csv_buffer = StringIO()
+
+    writer = csv.DictWriter(
+        csv_buffer,
+        fieldnames=sorted(REQUIRED_COLUMNS),
+    )
+
+    writer.writeheader()
+
+    writer.writerow(
+        {
+            "id": "OBSEC-001",
+            "description": "Office rent",
+            "category": "Operations",
+            "subcategory": "Rent",
+            "amount": "150000",
+            "currency": "XAF",
+            "type": "expense",
+            "transaction_date": "2026-09-05",
+            "due_date": "",
+            "status": "paid",
+            "source": "confirmed",
+            "project_id": "",
+            "location": "Douala",
+        }
+    )
+
+    response = client.post(
+        "/api/csv/preview",
+        files={
+            "file": (
+                "obsec.csv",
+                csv_buffer.getvalue().encode("utf-8"),
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert isinstance(calls[0], web_app.CSVSourceAdapter)

@@ -11,8 +11,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from fastapi import UploadFile, File
-from sigmavault.treasury.ingestion import load_financial_records
-
+from sigmavault.pipeline.csv_adapter import CSVSourceAdapter
+from sigmavault.pipeline.coordinator import FinancialDataPipeline
 from sigmavault.treasury.journal_synchronizer import synchronize_journal
 
 from sigmavault.treasury.audit_key_config import (
@@ -379,7 +379,13 @@ def preview_csv(file: UploadFile = File(...)):
                 destination.write(chunk)
 
         try:
-            records = load_financial_records(path)
+            source = CSVSourceAdapter(
+                path=path,
+                namespace="csv-preview",
+            )
+
+            result = FinancialDataPipeline().process(source)
+            records = result.records
 
         except (ValueError, UnicodeError, csv.Error) as exc:
             raise HTTPException(
@@ -392,12 +398,12 @@ def preview_csv(file: UploadFile = File(...)):
         "record_count": len(records),
         "records": [
             {
-                "record_id": record.record_id,
+                "record_id": record.identity.record_id,
                 "description": record.description,
                 "category": record.category,
                 "amount": str(record.amount),
                 "currency": record.currency,
-                "record_type": record.record_type,
+                "record_type": record.direction,
                 "transaction_date": (
                     record.transaction_date.isoformat()
                     if record.transaction_date
