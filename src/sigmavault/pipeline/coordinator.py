@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from sigmavault.pipeline.repository import SQLiteIngestionRepository
 from sigmavault.pipeline.models import (
     CanonicalFinancialRecord,
     SourceRecordIdentity,
@@ -11,6 +11,14 @@ from sigmavault.pipeline.source import FinancialDataSource
 class PipelineResult:
     records: tuple[CanonicalFinancialRecord, ...]
     duplicate_count: int
+    source_count: int
+    
+    
+@dataclass(frozen=True)
+class IngestionResult:
+    inserted_count: int
+    duplicate_count: int
+    conflict_count: int
     source_count: int
 
 
@@ -48,4 +56,26 @@ class FinancialDataPipeline:
             records=tuple(accepted),
             duplicate_count=duplicate_count,
             source_count=len(incoming),
+        )
+        
+    def ingest(
+        self,
+        source: FinancialDataSource,
+        repository: SQLiteIngestionRepository,
+    ) -> IngestionResult:
+        """Persist records after explicit ingestion approval."""
+
+        preview = self.process(source)
+
+        inserted, persisted_duplicates, conflicts = repository.record_batch(
+            preview.records
+        )
+
+        return IngestionResult(
+            inserted_count=inserted,
+            duplicate_count=(
+                preview.duplicate_count + persisted_duplicates
+            ),
+            conflict_count=conflicts,
+            source_count=preview.source_count,
         )
