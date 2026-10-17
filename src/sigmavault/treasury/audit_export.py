@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
-
+from sigmavault.treasury.combined_ledger import build_combined_ledger
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
@@ -105,9 +105,15 @@ def create_audit_export(
         indent=2,
         ensure_ascii=False,
     ).encode("utf-8")
+    combined_ledger = build_combined_ledger(
+    connection=connection,
+    public_key=public_key,
+)
 
+    combined_ledger_bytes = combined_ledger.encode("utf-8")
     files = {
         "treasury_decisions.beancount": journal_bytes,
+        "sigmavault_ledger.beancount": combined_ledger_bytes,
         "signed_decisions.json": signed_decisions_bytes,
         "public_key.pem": public_key_bytes,
     }
