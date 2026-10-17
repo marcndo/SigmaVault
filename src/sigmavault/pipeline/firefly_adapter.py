@@ -1,7 +1,6 @@
 from datetime import date
 
-from sigmavault.integrations.firefly.adapter import (
-    parse_firefly_transaction,
+from sigmavault.integrations.firefly.adapter import (parse_firefly_split,
 )
 from sigmavault.integrations.firefly.client import FireflyClient
 from sigmavault.pipeline.models import (
@@ -9,6 +8,7 @@ from sigmavault.pipeline.models import (
     SourceRecordIdentity,
 )
 
+    
 
 class FireflySourceAdapter:
     """Normalize Firefly III account transactions for the shared pipeline."""
@@ -38,17 +38,12 @@ class FireflySourceAdapter:
         records = []
 
         for group in groups:
-            transaction = parse_firefly_transaction(
-                group,
-                status="actual",
-            )
-
+            transaction = parse_firefly_split(group)
             split = group["attributes"]["transactions"][0]
 
             description = split.get("description")
             category = split.get("category_name")
             raw_date = split.get("date")
-
             if not isinstance(description, str) or not description.strip():
                 raise ValueError("Missing Firefly transaction description")
 
@@ -81,3 +76,5 @@ class FireflySourceAdapter:
             )
 
         return records
+    
+

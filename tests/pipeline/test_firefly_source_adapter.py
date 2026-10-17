@@ -6,6 +6,23 @@ from sigmavault.pipeline.coordinator import FinancialDataPipeline
 from sigmavault.pipeline.firefly_adapter import FireflySourceAdapter
 
 
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal, InvalidOperation
+
+from sigmavault.treasury.domain import FinancialTransaction
+from sigmavault.integrations.firefly.historical_record import (
+    FireflyHistoricalRecord,
+)
+
+
+@dataclass(frozen=True)
+class ParsedFireflyTransaction:
+    transaction_id: str
+    amount: Decimal
+    currency: str
+    direction: str
+
 class FakeFireflyClient:
     def __init__(self, groups):
         self.groups = groups
@@ -109,6 +126,48 @@ def test_firefly_adapter_propagates_invalid_amount():
         client=FakeFireflyClient([make_group(amount="invalid")]),
         account_id=17,
         namespace="test-firefly/account-17",
+    )
+
+    with pytest.raises(ValueError, match="Invalid Firefly transaction amount"):
+        adapter.fetch_records()
+        
+        
+def test_firefly_source_accepts_usd_without_treasury_currency_restriction():
+    group = make_group(
+        group_id="usd-101",
+        transaction_type="withdrawal",
+        amount="125.50",
+    )
+
+    group["attributes"]["transactions"][0]["currency_code"] = "USD"
+
+    adapter = FireflySourceAdapter(
+        client=FakeFireflyClient([group]),
+        account_id=1,
+        namespace="firefly-instance-a:account-1",
+    )
+
+    result = FinancialDataPipeline().process(adapter)
+
+    assert len(result.records) == 1
+    assert result.records[0].currency == "USD"
+    assert result.records[0].amount == Decimal("125.50")
+
+
+@pytest.mark.parametrize("invalid_amount", ["0", "-10", "NaN", "Infinity"])
+def test_firefly_source_rejects_nonpositive_or_nonfinite_amounts(
+    invalid_amount,
+):
+    group = make_group(
+        group_id="invalid-101",
+        transaction_type="withdrawal",
+        amount=invalid_amount,
+    )
+
+    adapter = FireflySourceAdapter(
+        client=FakeFireflyClient([group]),
+        account_id=1,
+        namespace="firefly-instance-a:account-1",
     )
 
     with pytest.raises(ValueError, match="Invalid Firefly transaction amount"):
