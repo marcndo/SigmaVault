@@ -13,7 +13,14 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
-
+from sigmavault.pipeline.models import SourceRecordIdentity
+from sigmavault.treasury.signed_financial_repository import (
+    SQLiteSignedFinancialRepository,
+)
+from sigmavault.treasury.signed_financial_transaction import (
+    serialize_financial_payload,
+    verify_signed_financial_record,
+)
 from sigmavault.treasury.journal_synchronizer import synchronize_journal
 from sigmavault.treasury.signed_decision_audit import (
     serialize_audit_payload_v2,
@@ -111,10 +118,66 @@ def create_audit_export(
 )
 
     combined_ledger_bytes = combined_ledger.encode("utf-8")
+    financial_repository = SQLiteSignedFinancialRepository(connection)
+
+    financial_rows = connection.execute(
+        """
+        SELECT provider, namespace, record_id, evidence_reference
+        FROM signed_financial_records
+        ORDER BY rowid
+        """
+    ).fetchall()
+
+    signed_financial_transactions = []
+
+    for provider, namespace, record_id, evidence_reference in financial_rows:
+        identity = SourceRecordIdentity(
+            provider=provider,
+            namespace=namespace,
+            record_id=record_id,
+        )
+
+        record = financial_repository.get(identity)
+
+        if record is None or not verify_signed_financial_record(
+            record,
+            public_key,
+        ):
+            raise ValueError(
+                f"Invalid signed financial record: {identity}"
+            )
+
+        signed_financial_transactions.append(
+            {
+                "source_identity": {
+                    "provider": provider,
+                    "namespace": namespace,
+                    "record_id": record_id,
+                },
+                "payload": json.loads(
+                    serialize_financial_payload(record.payload).decode("utf-8")
+                ),
+                "journal_entry": record.journal_entry,
+                "signature_base64": base64.b64encode(
+                    record.signature
+                ).decode("ascii"),
+                "evidence_reference": evidence_reference,
+            }
+        )
+
+    signed_financial_bytes = json.dumps(
+        {
+            "format": "sigmavault-signed-financial-transactions-v1",
+            "transactions": signed_financial_transactions,
+        },
+        indent=2,
+        ensure_ascii=False,
+    ).encode("utf-8")
     files = {
         "treasury_decisions.beancount": journal_bytes,
         "sigmavault_ledger.beancount": combined_ledger_bytes,
         "signed_decisions.json": signed_decisions_bytes,
+        "signed_financial_transactions.json": signed_financial_bytes,
         "public_key.pem": public_key_bytes,
     }
 

@@ -1,4 +1,5 @@
 import io
+import base64
 import json
 import sqlite3
 from datetime import date
@@ -73,6 +74,7 @@ def test_export_contains_verified_audit_artifacts(tmp_path):
             "signed_decisions.json",
             "public_key.pem",
             "manifest.json",
+            "signed_financial_transactions.json",
         }
 
         decisions = json.loads(
@@ -175,7 +177,6 @@ def test_export_contains_signed_financial_transaction_and_ai_decision(tmp_path):
 
     connection = sqlite3.connect(":memory:")
 
-    # 1. Create a signed AI decision.
     decision_repository = SQLiteSignedDecisionRepository(connection)
 
     explanation = (
@@ -203,7 +204,6 @@ def test_export_contains_signed_financial_transaction_and_ai_decision(tmp_path):
     
     decision_repository.save(signed_decision)
     
-        # 2. Create a synthetic, verified financial transaction.
     financial_repository = SQLiteSignedFinancialRepository(connection)
 
     transaction = FinancialTransaction(
@@ -246,17 +246,51 @@ def test_export_contains_signed_financial_transaction_and_ai_decision(tmp_path):
 
     connection.commit()
 
-    # 3. Generate the audit ZIP.
     exported = create_audit_export(
         connection=connection,
         journal_path=tmp_path / "treasury_decisions.beancount",
         public_key=public_key,
     )
 
-    # 4. Inspect the ZIP and verify its contents.
     with ZipFile(io.BytesIO(exported)) as archive:
         assert "sigmavault_ledger.beancount" in archive.namelist()
+        financial_data = json.loads(
+            archive.read("signed_financial_transactions.json")
+        )
 
+        assert (
+            financial_data["format"]
+            == "sigmavault-signed-financial-transactions-v1"
+        )
+
+        assert len(financial_data["transactions"]) == 1
+
+        exported_transaction = financial_data["transactions"][0]
+
+        assert exported_transaction["source_identity"] == {
+            "provider": "synthetic_test",
+            "namespace": "obsec_demo",
+            "record_id": "BANK-001",
+        }
+
+        assert exported_transaction["payload"]["transaction_id"] == "BANK-001"
+        assert exported_transaction["payload"]["amount"] == "25000"
+        assert exported_transaction["payload"]["currency"] == "XAF"
+
+        assert (
+            exported_transaction["journal_entry"]
+            == signed_transaction.journal_entry
+        )
+
+        assert (
+        exported_transaction["signature_base64"]
+            == base64.b64encode(signed_transaction.signature).decode("ascii")
+        )
+
+        assert (
+            exported_transaction["evidence_reference"]
+            == "synthetic-evidence-001"
+        )
         ledger = archive.read(
             "sigmavault_ledger.beancount"
         ).decode("utf-8")
@@ -310,7 +344,6 @@ def test_export_contains_signed_financial_transaction_and_ai_decision(tmp_path):
 
         assert "sigmavault_ledger.beancount" in manifest["files"]
 
-    # 5. Verify the stored transaction signature independently.
     restored = financial_repository.get(identity)
 
     assert restored is not None
